@@ -3,13 +3,19 @@ info:
   # Do not change the title, if the title changes, the import paths will be broken
   title: Api
   version: 0.1.0
-  description: API specification
+  description: Fire TV discovery and parental safety demo API
 servers:
   - url: /api
     description: Base API path
 tags:
   - name: health
     description: Health operations
+  - name: pairing
+    description: TV and parent device pairing
+  - name: discovery
+    description: Search and title selection
+  - name: profiles
+    description: Child profiles and content thresholds
 paths:
   /healthz:
     get:
@@ -24,6 +30,158 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /pair:
+    post:
+      operationId: createPairing
+      tags: [pairing]
+      summary: Create a TV pairing session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairRequest"
+      responses:
+        "200":
+          description: Pairing session created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairSession"
+  /pair/confirm:
+    post:
+      operationId: confirmPairing
+      tags: [pairing]
+      summary: Confirm a pairing code from the parent device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PairConfirmRequest"
+      responses:
+        "200":
+          description: Pairing confirmed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParentAccount"
+        "404":
+          description: Pairing code not found
+  /pair/status/{code}:
+    get:
+      operationId: getPairingStatus
+      tags: [pairing]
+      summary: Check whether a pairing code has been confirmed
+      parameters:
+        - name: code
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Pairing status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PairStatus"
+  /profiles/{parentId}:
+    get:
+      operationId: getProfiles
+      tags: [profiles]
+      summary: Get child profiles for a parent
+      parameters:
+        - name: parentId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Parent profiles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProfilesResponse"
+  /profiles/{childId}/thresholds:
+    post:
+      operationId: updateThresholds
+      tags: [profiles]
+      summary: Update a child's content thresholds
+      parameters:
+        - name: childId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Thresholds"
+      responses:
+        "200":
+          description: Updated child profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChildProfile"
+  /search:
+    get:
+      operationId: searchTitles
+      tags: [discovery]
+      summary: Search movies and shows
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching titles
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SearchResponse"
+  /select-title:
+    post:
+      operationId: selectTitle
+      tags: [discovery]
+      summary: Ask the content advisor to evaluate a title
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SelectTitleRequest"
+      responses:
+        "200":
+          description: Verdict or approval wait state
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TitleSelectionResponse"
+  /approve:
+    post:
+      operationId: decideTitle
+      tags: [discovery]
+      summary: Approve or deny a flagged title
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DecisionRequest"
+      responses:
+        "200":
+          description: Decision accepted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DecisionResponse"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +191,124 @@ components:
           type: string
       required:
         - status
+    ThresholdLevel:
+      type: string
+      enum: [none, mild, moderate, severe]
+    Thresholds:
+      type: object
+      properties:
+        violence: { $ref: "#/components/schemas/ThresholdLevel" }
+        language: { $ref: "#/components/schemas/ThresholdLevel" }
+        sexContent: { $ref: "#/components/schemas/ThresholdLevel" }
+        substances: { $ref: "#/components/schemas/ThresholdLevel" }
+        scaryContent: { $ref: "#/components/schemas/ThresholdLevel" }
+      required: [violence, language, sexContent, substances, scaryContent]
+    ChildProfile:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        age: { type: integer }
+        thresholds: { $ref: "#/components/schemas/Thresholds" }
+      required: [id, name, age, thresholds]
+    ParentAccount:
+      type: object
+      properties:
+        id: { type: string }
+        name: { type: string }
+        children:
+          type: array
+          items: { $ref: "#/components/schemas/ChildProfile" }
+      required: [id, name, children]
+    PairRequest:
+      type: object
+      properties:
+        parentAccountId: { type: string }
+      required: [parentAccountId]
+    PairSession:
+      type: object
+      properties:
+        code: { type: string }
+        parentAccountId: { type: string }
+        expiresAt: { type: string }
+      required: [code, parentAccountId, expiresAt]
+    PairConfirmRequest:
+      type: object
+      properties:
+        code: { type: string }
+      required: [code]
+    PairStatus:
+      type: object
+      properties:
+        confirmed: { type: boolean }
+        parentAccount:
+          anyOf:
+            - $ref: "#/components/schemas/ParentAccount"
+            - type: "null"
+      required: [confirmed]
+    ProfilesResponse:
+      type: object
+      properties:
+        parentAccount: { $ref: "#/components/schemas/ParentAccount" }
+      required: [parentAccount]
+    Title:
+      type: object
+      properties:
+        id: { type: string }
+        title: { type: string }
+        year: { type: integer }
+        posterPath: { type: string }
+        overview: { type: string }
+        genres:
+          type: array
+          items: { type: string }
+        service: { type: string }
+      required: [id, title, year, posterPath, overview, genres, service]
+    SearchResponse:
+      type: object
+      properties:
+        source: { type: string }
+        results:
+          type: array
+          items: { $ref: "#/components/schemas/Title" }
+      required: [source, results]
+    SelectTitleRequest:
+      type: object
+      properties:
+        titleId: { type: string }
+        childProfileId: { type: string }
+        parentAccountId: { type: string }
+      required: [titleId, childProfileId, parentAccountId]
+    ContentVerdict:
+      type: string
+      enum: [approved, flagged, blocked]
+    TitleSelectionResponse:
+      type: object
+      properties:
+        requestId: { type: string }
+        verdict: { $ref: "#/components/schemas/ContentVerdict" }
+        title: { $ref: "#/components/schemas/Title" }
+        reason: { type: string }
+        categoriesOfConcern:
+          type: array
+          items: { type: string }
+        service: { type: string }
+      required: [requestId, verdict, title, reason, categoriesOfConcern, service]
+    DecisionRequest:
+      type: object
+      properties:
+        requestId: { type: string }
+        parentAccountId: { type: string }
+        decision:
+          type: string
+          enum: [approved, denied]
+      required: [requestId, parentAccountId, decision]
+    DecisionResponse:
+      type: object
+      properties:
+        ok: { type: boolean }
+        decision:
+          type: string
+          enum: [approved, denied]
+      required: [ok, decision]
 
