@@ -1,6 +1,6 @@
 services:
   - type: web
     name: family-screen
-    env: node
+    runtime: node
     buildCommand: pnpm install && pnpm run build
     startCommand: pnpm run start
