@@ -30,6 +30,105 @@ get_local_ip() {
     fi
 }
 
+# Function to get Android SDK path
+get_android_sdk_path() {
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        # macOS
+        echo "$HOME/Library/Android/sdk"
+    else
+        # Linux
+        echo "$HOME/Android/Sdk"
+    fi
+}
+
+# Function to start Android emulator
+start_android_emulator() {
+    echo "📱 Checking for Android devices..."
+    
+    # First check if any device is already connected
+    if adb devices | grep -v "List of devices" | grep -q "device"; then
+        echo "✅ Android device found"
+        return 0
+    fi
+    
+    # No device found, try to start an emulator
+    echo "⚠️  No Android device found, attempting to start emulator..."
+    
+    # Set ANDROID_HOME if not set
+    if [ -z "$ANDROID_HOME" ]; then
+        export ANDROID_HOME=$(get_android_sdk_path)
+        export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
+        echo "📋 Set ANDROID_HOME to: $ANDROID_HOME"
+    fi
+    
+    # Check if emulator command exists
+    if ! command -v emulator &> /dev/null; then
+        # Try direct path if not in PATH
+        if [ -f "$ANDROID_HOME/emulator/emulator" ]; then
+            export PATH=$PATH:$ANDROID_HOME/emulator
+            echo "📋 Added emulator to PATH"
+        else
+            echo "❌ Android emulator command not found at $ANDROID_HOME/emulator/emulator"
+            echo "💡 Please install Android SDK or set ANDROID_HOME correctly"
+            return 1
+        fi
+    fi
+    
+    # List available emulators
+    echo "📋 Available Android emulators:"
+    "$ANDROID_HOME/emulator/emulator" -list-avds
+    
+    # Try to start the first available emulator
+    FIRST_EMULATOR=$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n 1)
+    
+    if [ -z "$FIRST_EMULATOR" ]; then
+        echo "❌ No Android emulators found. Please create one in Android Studio."
+        return 1
+    fi
+    
+    echo "🚀 Starting emulator: $FIRST_EMULATOR"
+    # Use the full path to emulator to avoid PATH issues
+    "$ANDROID_HOME/emulator/emulator" -avd "$FIRST_EMULATOR" -no-snapshot-load > /dev/null 2>&1 &
+    EMULATOR_PID=$!
+    
+    # Wait for emulator to boot
+    echo "⏳ Waiting for emulator to boot (this may take 1-2 minutes)..."
+    for i in {1..120}; do
+        if adb devices | grep -v "List of devices" | grep -q "device"; then
+            echo "✅ Emulator is ready"
+            return 0
+        fi
+        sleep 1
+    done
+    
+    echo "❌ Emulator failed to start within timeout"
+    return 1
+}
+
+# Function to create local.properties if it doesn't exist
+ensure_local_properties() {
+    local android_dir="apps/family-screen-mobile/android"
+    local local_props="$android_dir/local.properties"
+    
+    if [ ! -f "$local_props" ]; then
+        echo "📝 Creating local.properties..."
+        local sdk_path=$(get_android_sdk_path)
+        
+        if [ -d "$sdk_path" ]; then
+            echo "sdk.dir=$sdk_path" > "$local_props"
+            echo "✅ Created local.properties with SDK path: $sdk_path"
+        else
+            echo "⚠️  Android SDK not found at $sdk_path"
+            echo "💡 Please set ANDROID_HOME environment variable or install Android SDK"
+            return 1
+        fi
+    else
+        echo "✅ local.properties already exists"
+    fi
+    
+    return 0
+}
+
 # Check if API server is already running
 if check_port 8080; then
     echo "✅ API server is already running on port 8080"
@@ -84,31 +183,45 @@ fi
 # Build and run Vega TV app
 echo "📦 Building Vega TV app..."
 cd vega-app
-pnpm run build > /dev/null 2>&1
+pnpm run build:debug
 
 echo "🚀 Installing and running Vega TV app..."
 export AT_SERVER_DISABLED=true
-vega run-app build/private/kepler/@amazon-devices/familyscreenvega/undefined/vega/aarch64/Release/@amazon-devices/familyscreenvega_aarch64.vpkg > /dev/null 2>&1 &
+vega run-app build/private/kepler/@amazon-devices/familyscreenvega/undefined/vega/x86_64/Debug/@amazon-devices/familyscreenvega_x86_64.vpkg com.familyscreen.vega.main --deviceId VirtualDevice > /dev/null 2>&1 &
 TV_PID=$!
 cd ..
 
 echo "✅ Vega TV app started"
 
-# Check if Android device is connected
-echo "📱 Checking for Android devices..."
-if adb devices | grep -v "List of devices" | grep -q "device"; then
-    echo "✅ Android device found"
-    
-    # Build and run mobile app
-    echo "📦 Building mobile app..."
-    cd apps/family-screen-mobile
-    pnpm run android > /dev/null 2>&1 &
-    MOBILE_PID=$!
-    cd ..
-    
-    echo "✅ Mobile app started"
+# Set up Android environment before starting emulator
+export ANDROID_HOME=$(get_android_sdk_path)
+export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
+echo "📋 Android SDK path: $ANDROID_HOME"
+
+# Start Android device/emulator
+if start_android_emulator; then
+    # Ensure local.properties exists
+    if ensure_local_properties; then
+        # Get the first available device
+        FIRST_DEVICE=$(adb devices | grep -v "List of devices" | grep "device" | head -n 1 | awk '{print $1}')
+        
+        if [ -z "$FIRST_DEVICE" ]; then
+            echo "❌ No Android device available"
+            return 1
+        fi
+        
+        echo "📱 Using device: $FIRST_DEVICE"
+        echo "📦 Mobile app setup complete"
+        echo "� To run the mobile app manually:"
+        echo "   cd apps/family-screen-mobile"
+        echo "   pnpm run android:build"
+        echo "   pnpm run android:install"
+        echo "   Or open in Android Studio and run the app"
+    else
+        echo "❌ Failed to setup Android environment"
+    fi
 else
-    echo "⚠️  No Android device found"
+    echo "⚠️  No Android device available - mobile app not started"
     echo "💡 To start the mobile app manually:"
     echo "   cd apps/family-screen-mobile"
     echo "   pnpm run android"
@@ -148,6 +261,14 @@ cleanup() {
     if [ ! -z "$API_PID" ]; then
         kill $API_PID 2>/dev/null || true
         echo "✅ API server stopped"
+    fi
+    
+    if [ ! -z "$EMULATOR_PID" ]; then
+        kill $EMULATOR_PID 2>/dev/null || true
+        echo "✅ Android emulator stopped"
+    else
+        # Also try to stop any running emulators gracefully
+        adb emu kill > /dev/null 2>&1 || true
     fi
     
     # Stop virtual device

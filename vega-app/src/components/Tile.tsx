@@ -14,6 +14,7 @@ export interface TileProps {
   isFocused: boolean;
   onFocus: () => void;
   onBlur?: () => void;
+  onPress?: () => void;
   testID?: string;
   accessibilityLabel?: string;
   hasTVPreferredFocus?: boolean;
@@ -25,15 +26,23 @@ export const Tile = ({
   isFocused,
   onFocus,
   onBlur,
+  onPress,
   testID,
   accessibilityLabel,
   hasTVPreferredFocus,
 }: TileProps) => {
+  const handlePress = () => {
+    if (onPress) {
+      onPress();
+    }
+  };
+
   return (
     <Pressable
       style={[styles.tile, isFocused ? styles.focused : styles.default]}
       onFocus={onFocus}
       onBlur={onBlur}
+      onPress={onPress ? handlePress : undefined}
       testID={testID}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button"

@@ -3,9 +3,12 @@
   "version": "0.0.1",
   "private": true,
   "scripts": {
-    "android": "react-native run-android",
-    "ios": "react-native run-ios",
-    "start": "react-native start",
+    "android": "echo 'Android build requires manual setup. Please run: cd android && ./gradlew assembleDebug'",
+    "android:install": "adb install -r android/app/build/outputs/apk/debug/app-debug.apk && adb shell am start -n com.familyscreen.mobile/.MainActivity",
+    "android:device": "adb -s $DEVICE install -r android/app/build/outputs/apk/debug/app-debug.apk && adb -s $DEVICE shell am start -n com.familyscreen.mobile/.MainActivity",
+    "android:build": "cd android && ./gradlew assembleDebug",
+    "ios": "npx expo run:ios",
+    "start": "npx expo start",
     "test": "jest",
     "lint": "eslint ."
   },

@@ -5,6 +5,7 @@ import { readSavedAccountId, saveAccountId, clearAccountId } from "./storage";
 import { getProfiles } from "./api";
 import PairScreen from "./screens/PairScreen";
 import BrowseScreen from "./screens/BrowseScreen";
+import YouTubeScreen from "./screens/YouTubeScreen";
 import type { ParentAccount } from "./types";
 
 // Top-level state machine for the TV app:
@@ -15,6 +16,7 @@ export default function App() {
   const [accountId, setAccountId] = useState("family-demo");
   const [parentAccountId, setParentAccountId] = useState("");
   const [account, setAccount] = useState<ParentAccount | null>(null);
+  const [showYouTube, setShowYouTube] = useState(false);
 
   useEffect(() => {
     readSavedAccountId("family-demo").then(setAccountId);
@@ -30,6 +32,11 @@ export default function App() {
     setParentAccountId("");
     setAccount(null);
     clearAccountId(); // Clear the saved account ID so it doesn't auto-pair
+  };
+
+  const handleSelectYouTube = () => {
+    console.log("handleSelectYouTube called");
+    setShowYouTube(true);
   };
 
   // If we already have a saved parent account id (e.g. app relaunch),
@@ -56,8 +63,10 @@ export default function App() {
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
-      {account && parentAccountId ? (
-        <BrowseScreen account={account} parentAccountId={parentAccountId} onUnpair={handleUnpair} />
+      {showYouTube ? (
+        <YouTubeScreen onExit={() => setShowYouTube(false)} />
+      ) : account && parentAccountId ? (
+        <BrowseScreen account={account} parentAccountId={parentAccountId} onUnpair={handleUnpair} onSelectYouTube={handleSelectYouTube} />
       ) : (
         <PairScreen accountId={accountId} setAccountId={setAccountId} onPaired={handlePaired} />
       )}

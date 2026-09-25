@@ -1,0 +1,2 @@
+allowBuilds:
+  '@amazon-devices/react-native-kepler': true

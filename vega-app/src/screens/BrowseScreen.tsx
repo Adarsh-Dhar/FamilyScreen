@@ -11,17 +11,19 @@ import {
 import { colors } from "../theme";
 import { searchTitles } from "../api";
 import TitleDetailModal from "./TitleDetailModal";
+import { Tile } from "../components/Tile";
 import type { ChildProfile, ParentAccount, Title } from "../types";
 
 interface Props {
   account: ParentAccount;
   parentAccountId: string;
   onUnpair: () => void;
+  onSelectYouTube: () => void;
 }
 
 // Mirrors the web app's post-pairing TVHome state: profile switcher,
 // search box, result grid, and the title detail modal.
-export default function BrowseScreen({ account, parentAccountId, onUnpair }: Props) {
+export default function BrowseScreen({ account, parentAccountId, onUnpair, onSelectYouTube }: Props) {
   const [selectedChild, setSelectedChild] = useState<ChildProfile | null>(
     account.children[0] || null
   );
@@ -30,6 +32,7 @@ export default function BrowseScreen({ account, parentAccountId, onUnpair }: Pro
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [activeTitle, setActiveTitle] = useState<Title | null>(null);
+  const [youTubeFocused, setYouTubeFocused] = useState(false);
 
   useEffect(() => {
     if (query.trim().length < 2) {
@@ -90,6 +93,27 @@ export default function BrowseScreen({ account, parentAccountId, onUnpair }: Pro
             </Text>
           </TouchableOpacity>
         ))}
+      </View>
+
+      <View style={styles.quickAccessRow}>
+        <Tile
+          label="YouTube"
+          icon={require("../assets/vega.png")}
+          isFocused={youTubeFocused}
+          onFocus={() => {
+            console.log("YouTube tile focused");
+            setYouTubeFocused(true);
+          }}
+          onBlur={() => {
+            console.log("YouTube tile blurred");
+            setYouTubeFocused(false);
+          }}
+          onPress={() => {
+            console.log("YouTube tile pressed");
+            onSelectYouTube();
+          }}
+          hasTVPreferredFocus={true}
+        />
       </View>
 
       <TextInput
@@ -158,6 +182,11 @@ const styles = StyleSheet.create({
   profileChipActive: { backgroundColor: colors.secondary, borderColor: colors.secondary },
   profileChipText: { color: colors.muted, fontWeight: "700" },
   profileChipTextActive: { color: colors.background },
+  quickAccessRow: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 24,
+  },
   search: {
     marginTop: 24,
     borderWidth: 1,
