@@ -139,6 +139,24 @@ router.on('GET', '/api/household', () => ({
   },
 }));
 
+// Bootstrap payload keeps the frontend to one authenticated read after pairing.
+router.on('GET', '/api/bootstrap', () => ({
+  json: {
+    householdName: db.householdName,
+    plan: db.plan,
+    guardians: db.guardians,
+    invites: db.invites.filter((i) => i.expiresAt > Date.now()),
+    children: db.children,
+    devices: db.devices,
+    rules: db.rules,
+    channelRules: db.channelRules,
+    videos: db.videos,
+    watchEvents: db.watchEvents.map((event) => toView(event)),
+    reviewRequests: db.reviewRequests.filter((request) => request.status === 'pending').map((request) => ({ ...request, video: db.videos.find((video) => video.videoId === request.videoId)! })),
+    notifications: db.notifications,
+  },
+}));
+
 // Dashboard
 router.on('GET', '/api/dashboard', () => {
   const now = Date.now();
