@@ -2,6 +2,9 @@
 
 ## Run & Operate
 
+- `pnpm run start` — Start all services (API server + web app)
+- `pnpm run start:web` — Start web app only (port 5173)
+- `pnpm run start:tv` — Start TV app with Vega virtual device
 - `pnpm --filter @workspace/api-server run dev` — run the API server (port 8080)
 - `pnpm --filter @workspace/family-screen run dev` — run the family screen (port 5000)
 - `pnpm --filter @workspace/mockup-sandbox run dev` — run the mockup sandbox (port 3001)

@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Fire TV Discovery Demo - Stop All Apps
-# This script stops the TV app, mobile app, API server, and virtual device
+# This script stops the TV app, web app, API server, and virtual device
 
 echo "🛑 Fire TV Discovery Demo - Stopping All Apps"
 echo "=============================================="
@@ -15,21 +15,9 @@ kepler virtual-device stop > /dev/null 2>&1 && echo "✅ Virtual device stopped"
 echo "📡 Stopping API server..."
 lsof -ti:8080 | xargs kill -9 2>/dev/null && echo "✅ API server stopped" || echo "⚠️  API server was not running"
 
-# Kill Android build processes
-echo "📱 Stopping mobile app processes..."
-pkill -f "react-native run-android" 2>/dev/null && echo "✅ Mobile app processes stopped" || echo "⚠️  No mobile app processes running"
-
-# Stop mobile app on device
-echo "📱 Stopping mobile app on Android device..."
-adb shell am force-stop com.familyscreen.mobile 2>/dev/null && echo "✅ Mobile app stopped on device" || echo "⚠️  Could not stop mobile app on device"
-
-# Kill gradle processes
-echo "🔨 Stopping Gradle processes..."
-pkill -f gradle 2>/dev/null && echo "✅ Gradle processes stopped" || echo "⚠️  No Gradle processes running"
-
-# Kill node processes related to metro
-echo "⚛️  Stopping Metro bundler..."
-pkill -f "react-native start" 2>/dev/null && echo "✅ Metro bundler stopped" || echo "⚠️  Metro bundler was not running"
+# Stop web app
+echo "🌐 Stopping web app..."
+pkill -f "vite" 2>/dev/null && echo "✅ Web app stopped" || echo "⚠️  Web app was not running"
 
 # Clean up Vega virtual device instances
 echo "🧹 Cleaning up Vega virtual device instances..."

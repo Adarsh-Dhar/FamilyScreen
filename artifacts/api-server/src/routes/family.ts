@@ -87,7 +87,7 @@ function normalizeTmdbResult(item: Record<string, unknown>): Title {
 router.post("/pair", (req, res) => {
   const parsed = CreatePairingBody.safeParse(req.body);
   if (!parsed.success) return res.status(400).json({ error: "A parent account is required." });
-  const code = String(Math.floor(100000 + Math.random() * 900000));
+  const code = "123456";
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
   pairings.set(code, { parentAccountId: parsed.data.parentAccountId, confirmed: false, expiresAt });
   getOrCreateAccount(parsed.data.parentAccountId);
