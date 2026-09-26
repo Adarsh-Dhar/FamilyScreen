@@ -33,6 +33,28 @@ export function toDateInput(ts: number) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 }
 
-export function startOfDay(ts: number) { const d = new Date(ts); d.setHours(0, 0, 0, 0); return d.getTime(); }
-export function toCsv(rows: Record<string, unknown>[]) { if (!rows.length) return ''; const keys = Object.keys(rows[0]); return [keys.join(','), ...rows.map((row) => keys.map((key) => JSON.stringify(row[key] ?? '')).join(','))].join('\\n'); }
-export function downloadFile(name: string, content: string, type: string) { const blob = new Blob([content], { type }); const url = URL.createObjectURL(blob); const link = document.createElement('a'); link.href = url; link.download = name; link.click(); URL.revokeObjectURL(url); }
+export function startOfDay(ts: number) {
+  const date = new Date(ts);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+export function toCsv(rows: Record<string, unknown>[]) {
+  if (!rows.length) return '';
+  const keys = Object.keys(rows[0]);
+  return [
+    keys.join(','),
+    ...rows.map((row) => keys.map((key) => JSON.stringify(row[key] ?? '')).join(',')),
+  ].join('\\n');
+}
+
+export function downloadFile(name: string, content: string, type: string) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = name;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
