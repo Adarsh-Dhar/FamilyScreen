@@ -35,7 +35,7 @@ export function AccountPage() {
   const deleteChild = (childId: string) => {
     const child = data.children.find((c) => c.id === childId)!;
     const typed = window.prompt(`This permanently deletes all watch history and review requests for ${child.name}. Type "${child.name}" to confirm.`);
-    if (typed === child.name) deleteChildData(childId);
+    if (typed === child.name) void deleteChildData(childId, typed);
   };
 
   return (

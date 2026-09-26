@@ -20,7 +20,7 @@ export function PairingPage() {
     setError('');
     setLoading(true);
     setTimeout(() => {
-      pair();
+      void pair(code);
       navigate('/dashboard', { replace: true });
     }, 600);
   };
