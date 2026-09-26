@@ -184,6 +184,7 @@ echo "⚠️  Skipping Vega TV app launch (virtual device incompatible with this
 echo "💡 Vega TV app built successfully for future deployment"
 echo "💡 You can test the mobile app with the API server directly"
 TV_PID=""
+MOBILE_PID=""
 
 # Set up Android environment before starting emulator
 export ANDROID_HOME=$(get_android_sdk_path)
@@ -204,7 +205,8 @@ if start_android_emulator; then
         
         echo "📱 Using device: $FIRST_DEVICE"
         echo "📦 Mobile app setup complete"
-        echo "� To run the mobile app manually:"
+        echo "⚠️  Mobile app build skipped due to React Native configuration issues"
+        echo "💡 To build and run the mobile app manually:"
         echo "   cd apps/family-screen-mobile"
         echo "   pnpm run android:build"
         echo "   pnpm run android:install"
@@ -225,11 +227,11 @@ echo ""
 echo "📋 Running Services:"
 echo "   • API Server: http://localhost:8080"
 echo "   • Vega TV App: Built and ready (virtual device unavailable on this macOS)"
-echo "   • Mobile App: Running on Android device (if connected)"
+echo "   • Mobile App: Available for manual build and installation"
 echo ""
-echo "� Development Mode:"
+echo "🎯 Development Mode:"
 echo "   • Vega TV app is built but cannot run due to macOS compatibility issues"
-echo "   • Use the mobile app to test API integration"
+echo "   • Mobile app requires manual build due to React Native configuration issues"
 echo "   • The mobile app can connect directly to the API server"
 echo "   • TV pairing is not available in this mode"
 echo ""

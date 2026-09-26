@@ -19,6 +19,10 @@ lsof -ti:8080 | xargs kill -9 2>/dev/null && echo "✅ API server stopped" || ec
 echo "📱 Stopping mobile app processes..."
 pkill -f "react-native run-android" 2>/dev/null && echo "✅ Mobile app processes stopped" || echo "⚠️  No mobile app processes running"
 
+# Stop mobile app on device
+echo "📱 Stopping mobile app on Android device..."
+adb shell am force-stop com.familyscreen.mobile 2>/dev/null && echo "✅ Mobile app stopped on device" || echo "⚠️  Could not stop mobile app on device"
+
 # Kill gradle processes
 echo "🔨 Stopping Gradle processes..."
 pkill -f gradle 2>/dev/null && echo "✅ Gradle processes stopped" || echo "⚠️  No Gradle processes running"
