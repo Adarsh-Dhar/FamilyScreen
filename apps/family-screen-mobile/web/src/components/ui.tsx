@@ -149,6 +149,17 @@ export function PageHeader({ title, description, action }: { title: string; desc
   );
 }
 
+export function PageLoading() {
+  return (
+    <div role="status" className="flex flex-col gap-4">
+      <span className="sr-only">Loading</span>
+      <div className="h-8 w-48 animate-pulse rounded-md bg-surface-2" />
+      <div className="h-40 animate-pulse rounded-xl bg-surface" />
+      <div className="h-64 animate-pulse rounded-xl bg-surface" />
+    </div>
+  );
+}
+
 export function EmptyState({ title, description }: { title: string; description?: string }) {
   return (
     <div className="flex flex-col items-center justify-center gap-1 px-6 py-12 text-center">

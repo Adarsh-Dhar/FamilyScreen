@@ -3,11 +3,12 @@ import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import { familyScreenApi } from './server/plugin';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export default defineConfig({
-  plugins: [react(), tailwindcss()] as any,
+  plugins: [react(), tailwindcss(), familyScreenApi()] as any,
   resolve: {
     alias: {
       '@': path.resolve(__dirname, 'src'),

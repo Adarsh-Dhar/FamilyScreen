@@ -1,16 +1,17 @@
-import { DAY, HOUR, MINUTE } from './format';
+import { DAY, HOUR, MINUTE } from './util';
 import { PRESET_THRESHOLDS, computeVerdict } from './rules-engine';
 import type {
   ChannelRule,
   Child,
   Device,
   Guardian,
+  Invite,
   NotificationSettings,
   ReviewRequest,
   RuleSet,
   Video,
   WatchEvent,
-} from './types';
+} from '../src/lib/types';
 
 export const VIDEOS: Video[] = [
   {
@@ -67,7 +68,7 @@ export interface AppData {
   householdName: string;
   plan: string;
   guardians: Guardian[];
-  invites: { id: string; email: string; expiresAt: number }[];
+  invites: Invite[];
   children: Child[];
   devices: Device[];
   rules: RuleSet[];
@@ -111,7 +112,7 @@ export function createSeed(now = Date.now()): AppData {
       if ((day + i) % 3 === 0 && day > 0) return;
       const video = VIDEOS[(vIdx + day) % VIDEOS.length];
       const rule = rules.find((r) => r.childId === childId)!;
-      const { verdict } = computeVerdict(video.categoryScores, rule, video.channelId, channelRules);
+      const verdict = computeVerdict(video.categoryScores, rule, video.channelId, channelRules);
       const startedAt = now - day * DAY - (i + 1) * 47 * MINUTE - (day === 0 ? 0 : 3 * HOUR);
       watchEvents.push({
         id: `we_${n++}`,

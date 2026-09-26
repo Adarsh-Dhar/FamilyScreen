@@ -98,3 +98,50 @@ export interface NotificationSettings {
   quietStart: string;
   quietEnd: string;
 }
+
+// API response shapes
+
+export interface Household {
+  householdName: string;
+  plan: string;
+  guardians: Guardian[];
+  invites: Invite[];
+  children: Child[];
+  devices: Device[];
+}
+
+export type WatchEventView = WatchEvent & { video: Video };
+
+export interface DashboardSummary {
+  children: {
+    childId: string;
+    live: WatchEventView | null;
+    watchedSecondsToday: number;
+    dailyLimitMinutes: number;
+  }[];
+  flagsThisWeek: number;
+  pendingReviews: number;
+  recent: WatchEventView[];
+}
+
+export type RulesView = RuleSet & { agePreset: AgePreset; isCustom: boolean };
+
+export interface ActivityResult {
+  items: WatchEventView[];
+  total: number;
+  page: number;
+  pageCount: number;
+}
+
+export type ReviewView = ReviewRequest & { video: Video; thresholds: CategoryScores };
+
+export interface ReviewQueue {
+  items: ReviewView[];
+  counts: Record<ReviewRequest['source'], number>;
+}
+
+export interface Insights {
+  trend: { dayStart: number; minutesByChild: Record<string, number> }[];
+  topChannels: { channelName: string; seconds: number }[];
+  categoryCounts: { category: Category; count: number }[];
+}

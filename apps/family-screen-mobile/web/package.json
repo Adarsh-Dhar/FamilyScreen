@@ -17,9 +17,11 @@
     "react-dom": "19.1.0",
     "react-router-dom": "^7.18.4",
     "recharts": "^3.10.1",
+    "swr": "^2.5.1",
     "tailwindcss": "^4.3.3"
   },
   "devDependencies": {
+    "@types/node": "^26.6.3",
     "@types/react": "^19.2.0",
     "@types/react-dom": "^19.2.0",
     "@vitejs/plugin-react": "^5.0.4",
