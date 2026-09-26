@@ -12,6 +12,7 @@
     "lint:fix": "eslint src test package.json --ext .ts,.tsx --fix",
     "build:release": "react-native build-vega --build-type Release",
     "build:debug": "react-native build-vega --build-type Debug",
+    "run:debug": "vega run-app",
     "build:app": "npm-run-all build:release",
     "build": "npm-run-all build:release",
     "release": "npm-run-all lint test build:app"

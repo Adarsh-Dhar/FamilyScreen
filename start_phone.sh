@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Fire TV Discovery Demo - Start All Apps
-# This script starts the TV app, mobile app, and API server
+# Fire TV Discovery Demo - Start Phone App Only
+# This script starts the mobile app with Android emulator
 
 set -e
 
-echo "🚀 Fire TV Discovery Demo - Starting All Apps"
+echo "🚀 Fire TV Discovery Demo - Starting Phone App Only"
 echo "=============================================="
 echo ""
 
@@ -76,10 +76,19 @@ start_android_emulator() {
     
     # List available emulators
     echo "📋 Available Android emulators:"
-    "$ANDROID_HOME/emulator/emulator" -list-avds
+    emulator -list-avds
     
-    # Try to start the first available emulator
-    FIRST_EMULATOR=$("$ANDROID_HOME/emulator/emulator" -list-avds | head -n 1)
+    # Try to start the first available phone emulator (avoid TV emulators)
+    # Prefer Pixel or other phone emulators, skip TV emulators
+    PHONE_EMULATORS=$(emulator -list-avds | grep -v -i television)
+    
+    if [ -n "$PHONE_EMULATORS" ]; then
+        FIRST_EMULATOR=$(echo "$PHONE_EMULATORS" | head -n 1)
+        echo "📱 Selected phone emulator: $FIRST_EMULATOR"
+    else
+        echo "⚠️  No phone emulators found, using first available emulator"
+        FIRST_EMULATOR=$(emulator -list-avds | head -n 1)
+    fi
     
     if [ -z "$FIRST_EMULATOR" ]; then
         echo "❌ No Android emulators found. Please create one in Android Studio."
@@ -87,16 +96,25 @@ start_android_emulator() {
     fi
     
     echo "🚀 Starting emulator: $FIRST_EMULATOR"
-    # Use the full path to emulator to avoid PATH issues
-    "$ANDROID_HOME/emulator/emulator" -avd "$FIRST_EMULATOR" -no-snapshot-load > /dev/null 2>&1 &
+    # Start emulator with reasonable settings for phone
+    # Use host GPU if available, otherwise software rendering
+    emulator -avd "$FIRST_EMULATOR" -no-snapshot-load -gpu host &
     EMULATOR_PID=$!
     
+    # Give emulator time to start before we continue
+    sleep 8
+    
     # Wait for emulator to boot
-    echo "⏳ Waiting for emulator to boot (this may take 1-2 minutes)..."
-    for i in {1..120}; do
+    echo "⏳ Waiting for emulator to boot (this may take 2-3 minutes)..."
+    for i in {1..180}; do
         if adb devices | grep -v "List of devices" | grep -q "device"; then
             echo "✅ Emulator is ready"
             return 0
+        fi
+        # Check if emulator process is still running
+        if ! kill -0 $EMULATOR_PID 2>/dev/null; then
+            echo "❌ Emulator process died during startup"
+            return 1
         fi
         sleep 1
     done
@@ -164,90 +182,23 @@ echo "📝 Updating mobile app API URL..."
 sed -i.bak "s|const API_BASE_URL = 'http://.*:8080'|const API_BASE_URL = 'http://$LOCAL_IP:8080'|g" apps/family-screen-mobile/App.tsx
 rm -f apps/family-screen-mobile/App.tsx.bak
 
-# Try to start Vega virtual device
-echo "📺 Attempting to start Vega virtual device..."
-VEGA_PID=""
-USE_ANDROID_EMULATOR=false
-
-# Check if vega command is available
-if command -v vega &> /dev/null; then
-    echo "🔧 Vega command found, attempting to start virtual device..."
-    
-    # Clean up any stale instances first
-    vega virtual-device stop > /dev/null 2>&1 || true
-    rm -rf /Users/adarsh/vega/sdk/vega-sdk/main/0.24.12112/vvd/instances/* > /dev/null 2>&1 || true
-    
-    # Try to start the virtual device with timeout and capture output
-    echo "⏳ Starting virtual device (this may take 1-2 minutes)..."
-    timeout 90 vega virtual-device start > /tmp/vega-start.log 2>&1 &
-    VEGA_START_PID=$!
-    
-    # Wait for virtual device to start
-    for i in {1..90}; do
-        if vega device list 2>/dev/null | grep -q "vega"; then
-            echo "✅ Vega virtual device started successfully"
-            VEGA_PID="running"
-            USE_ANDROID_EMULATOR=false
-            break
-        fi
-        sleep 1
-    done
-    
-    # Check if virtual device started successfully
-    if [ -z "$VEGA_PID" ]; then
-        echo "⚠️  Vega virtual device failed to start within timeout"
-        echo "💡 Check logs at /tmp/vega-start.log for details"
-        echo "💡 Falling back to Android emulator"
-        USE_ANDROID_EMULATOR=true
-        kill $VEGA_START_PID > /dev/null 2>&1 || true
-    fi
-else
-    echo "⚠️  Vega command not found, skipping Vega virtual device"
-    echo "💡 To use Vega virtual device, install the Vega SDK"
-    USE_ANDROID_EMULATOR=true
-fi
-
-# Build Vega TV app (optional, for future compatibility)
-echo "📦 Building Vega TV app (for future compatibility)..."
-cd vega-app
-pnpm run build:debug
-cd ..
-
-# Launch Vega TV app if device is running
-if [ ! -z "$VEGA_PID" ]; then
-    echo "🚀 Launching Vega TV app..."
-    cd vega-app
-    
-    # Find the built vpkg file
-    VPKG_FILE=$(find build/private/kepler -name "*.vpkg" | head -n 1)
-    
-    if [ -n "$VPKG_FILE" ]; then
-        echo "📦 Using package: $VPKG_FILE"
-        vega run-app "$VPKG_FILE" > /dev/null 2>&1 &
-        TV_PID=$!
-        echo "✅ Vega TV app launched"
-    else
-        echo "⚠️  No vpkg file found, app not launched"
-        TV_PID=""
-    fi
-    
-    cd ..
-else
-    echo "⚠️  Vega TV app not launched (virtual device not available)"
-    echo "💡 Vega TV app built successfully for future deployment"
-    echo "💡 You can test the mobile app with the API server directly"
-    TV_PID=""
-fi
-MOBILE_PID=""
-
 # Set up Android environment before starting emulator
 export ANDROID_HOME=$(get_android_sdk_path)
 export PATH=$PATH:$ANDROID_HOME/platform-tools:$ANDROID_HOME/emulator
 echo "📋 Android SDK path: $ANDROID_HOME"
 
-# Start Android device/emulator only if Vega device is not running
-if [ "$USE_ANDROID_EMULATOR" = true ]; then
-    if start_android_emulator; then
+# Start Android device/emulator
+if start_android_emulator; then
+    # Small delay to ensure emulator is stable
+    sleep 3
+    
+    # Verify emulator is still running (if we have a PID)
+    if [ ! -z "$EMULATOR_PID" ]; then
+        if ! kill -0 $EMULATOR_PID 2>/dev/null; then
+            echo "❌ Emulator process died during startup"
+            exit 1
+        fi
+    fi
     # Ensure local.properties exists
     if ensure_local_properties; then
         # Get the first available device
@@ -255,73 +206,89 @@ if [ "$USE_ANDROID_EMULATOR" = true ]; then
         
         if [ -z "$FIRST_DEVICE" ]; then
             echo "❌ No Android device available"
-            return 1
+            exit 1
         fi
         
         echo "📱 Using device: $FIRST_DEVICE"
-        echo "📦 Mobile app setup complete"
-        echo "⚠️  Mobile app build skipped due to React Native configuration issues"
-        echo "💡 To build and run the mobile app manually:"
-        echo "   cd apps/family-screen-mobile"
-        echo "   pnpm run android:build"
-        echo "   pnpm run android:install"
-        echo "   Or open in Android Studio and run the app"
+        echo "📦 Building and installing mobile app..."
+        
+        # Build the mobile app
+        cd apps/family-screen-mobile
+        pnpm run android:build
+        
+        if [ $? -eq 0 ]; then
+            echo "✅ Mobile app built successfully"
+            
+            # Install the app
+            pnpm run android:install
+            
+            if [ $? -eq 0 ]; then
+                echo "✅ Mobile app installed and launched"
+            else
+                echo "⚠️  Mobile app installation failed"
+            fi
         else
-            echo "❌ Failed to setup Android environment"
+            echo "⚠️  Mobile app build failed"
         fi
+        
+        cd ../..
     else
-        echo "⚠️  No Android device available - mobile app not started"
-        echo "💡 To start the mobile app manually:"
-        echo "   cd apps/family-screen-mobile"
-        echo "   pnpm run android"
+        echo "❌ Failed to setup Android environment"
+        exit 1
     fi
 else
-    echo "📱 Android emulator not needed (Vega device is running)"
+    echo "⚠️  No Android device available - mobile app not started"
+    echo "💡 To start the mobile app manually:"
+    echo "   cd apps/family-screen-mobile"
+    echo "   pnpm run android"
+    exit 1
 fi
 
 echo ""
-echo "🎉 Development environment started successfully!"
+echo "🎉 Phone App environment started successfully!"
 echo ""
 echo "📋 Running Services:"
 echo "   • API Server: http://localhost:8080"
-if [ ! -z "$VEGA_PID" ]; then
-    echo "   • Vega TV App: Running on virtual device"
-else
-    echo "   • Vega TV App: Built and ready (virtual device not started)"
-fi
+echo "   • Android Emulator: Running ($FIRST_EMULATOR - Phone)"
 echo "   • Mobile App: Available for manual build and installation"
 echo ""
-echo "🎯 Development Mode:"
-if [ ! -z "$VEGA_PID" ]; then
-    echo "   • Vega TV app is running on virtual device"
-    echo "   • TV pairing is available in this mode"
-else
-    echo "   • Vega TV app is built but not running"
-    echo "   • TV pairing is not available in this mode"
-fi
+echo "🎯 Phone Mode:"
 echo "   • Mobile app requires manual build due to React Native configuration issues"
 echo "   • The mobile app can connect directly to the API server"
 echo ""
-echo "🛑 To stop all apps, press Ctrl+C or run: pnpm run stop:all"
+echo "💡 To build and run the mobile app manually:"
+echo "   cd apps/family-screen-mobile"
+echo "   pnpm run android:build"
+echo "   pnpm run android:install"
+echo "   Or open in Android Studio and run the app"
+echo ""
+echo "🛑 To stop all apps, press Ctrl+C or run: pnpm run stop:phone"
 echo ""
 
 # Function to cleanup on exit
 cleanup() {
     echo ""
-    echo "🛑 Stopping all apps..."
-    
-    if [ ! -z "$TV_PID" ]; then
-        kill $TV_PID 2>/dev/null || true
-        echo "✅ Vega TV app stopped"
-    fi
-    
-    # Stop virtual device
-    kepler virtual-device stop > /dev/null 2>&1 || true
-    echo "✅ Virtual device stopped"
+    echo "🛑 Stopping phone app..."
     
     if [ ! -z "$MOBILE_PID" ]; then
         kill $MOBILE_PID 2>/dev/null || true
         echo "✅ Mobile app stopped"
+    fi
+    
+    if [ ! -z "$EMULATOR_PID" ]; then
+        # Try graceful shutdown first
+        kill -TERM $EMULATOR_PID 2>/dev/null || true
+        sleep 2
+        # Force kill if still running
+        kill -KILL $EMULATOR_PID 2>/dev/null || true
+        echo "✅ Android emulator stopped"
+    else
+        # Also try to stop any running emulators gracefully
+        if command -v adb &> /dev/null; then
+            adb emu kill > /dev/null 2>&1 || true
+            sleep 2
+            pkill -f "emulator" > /dev/null 2>&1 || true
+        fi
     fi
     
     if [ ! -z "$API_PID" ]; then
@@ -329,15 +296,7 @@ cleanup() {
         echo "✅ API server stopped"
     fi
     
-    if [ ! -z "$EMULATOR_PID" ]; then
-        kill $EMULATOR_PID 2>/dev/null || true
-        echo "✅ Android emulator stopped"
-    else
-        # Also try to stop any running emulators gracefully
-        adb emu kill > /dev/null 2>&1 || true
-    fi
-    
-    echo "👋 All apps stopped"
+    echo "👋 Phone app stopped"
     exit 0
 }
 
@@ -345,5 +304,5 @@ cleanup() {
 trap cleanup SIGINT SIGTERM
 
 # Keep script running
-echo "Press Ctrl+C to stop all apps..."
+echo "Press Ctrl+C to stop the phone app..."
 wait
