@@ -11,18 +11,23 @@ export function PairingPage() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
-  const handleSubmit = (e: FormEvent) => {
+  const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     if (!/^\d{6}$/.test(code)) {
       setError('Enter the 6-digit code shown on your TV.');
       return;
     }
+
     setError('');
     setLoading(true);
-    setTimeout(() => {
-      void pair(code);
+    try {
+      await pair(code);
       navigate('/dashboard', { replace: true });
-    }, 600);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Unable to pair this TV. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
