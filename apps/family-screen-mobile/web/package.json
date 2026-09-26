@@ -1,7 +1,8 @@
 {
-  "name": "web",
+  "name": "family-screen-web",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
+  "description": "Family Screen Web App - Parental control interface for TV content management",
   "type": "module",
   "scripts": {
     "dev": "vite",
