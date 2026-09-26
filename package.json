@@ -5,6 +5,7 @@
   "files": ["dist"],
   "scripts": {
     "clean": "rm -rf node_modules buildinfo.json dist build",
+    "dev": "cd apps/family-screen-mobile/web && npm install --no-audit --no-fund && npx vite --port ${PORT:-3000} --host",
     "start": "pnpm run start:web",
     "start:web": "cd apps/family-screen-mobile/web && npm run dev",
     "web": "cd apps/family-screen-mobile/web && npm run dev",
