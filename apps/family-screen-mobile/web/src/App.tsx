@@ -12,7 +12,11 @@ import { NotificationsPage } from './pages/notifications';
 import { AccountPage } from './pages/account';
 
 function RequirePaired({ children }: { children: ReactNode }) {
-  const { paired } = useStore();
+  const { paired, loading } = useStore();
+
+  // Wait for the persisted session before redirecting; otherwise the initial
+  // undefined session briefly looks unpaired and sends every route to /pair.
+  if (loading) return null;
   return paired ? children : <Navigate to="/pair" replace />;
 }
 
