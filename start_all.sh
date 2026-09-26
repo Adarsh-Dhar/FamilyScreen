@@ -164,34 +164,26 @@ echo "📝 Updating mobile app API URL..."
 sed -i.bak "s|const API_BASE_URL = 'http://.*:8080'|const API_BASE_URL = 'http://$LOCAL_IP:8080'|g" apps/family-screen-mobile/App.tsx
 rm -f apps/family-screen-mobile/App.tsx.bak
 
-# Start Vega virtual device
-echo "📺 Starting Vega virtual device..."
-export AT_SERVER_DISABLED=true
-kepler virtual-device start > /dev/null 2>&1 &
-VEGA_PID=$!
+# Skip Vega virtual device due to compatibility issues
+echo "📺 Skipping Vega virtual device (incompatible with this macOS system)"
+echo "💡 The Vega SDK virtual device has fundamental compatibility issues on macOS."
+echo "💡 Focusing on mobile app development with API server integration."
+VEGA_PID=""
+USE_ANDROID_EMULATOR=true
 
-# Wait for virtual device to be ready
-echo "⏳ Waiting for virtual device to start..."
-sleep 10
+# Skip port forwarding since Vega device is not available
+echo "🔗 Skipping port forwarding (Vega device not available)"
 
-# Start port forwarding for Vega device
-echo "🔗 Setting up port forwarding..."
-if ! vega device start-port-forwarding --port 8080 --forward false > /dev/null 2>&1; then
-    echo "⚠️  Port forwarding setup failed, but continuing..."
-fi
-
-# Build and run Vega TV app
-echo "📦 Building Vega TV app..."
+# Build Vega TV app (optional, for future compatibility)
+echo "📦 Building Vega TV app (for future compatibility)..."
 cd vega-app
 pnpm run build:debug
-
-echo "🚀 Installing and running Vega TV app..."
-export AT_SERVER_DISABLED=true
-vega run-app build/private/kepler/@amazon-devices/familyscreenvega/undefined/vega/x86_64/Debug/@amazon-devices/familyscreenvega_x86_64.vpkg com.familyscreen.vega.main --deviceId VirtualDevice > /dev/null 2>&1 &
-TV_PID=$!
 cd ..
 
-echo "✅ Vega TV app started"
+echo "⚠️  Skipping Vega TV app launch (virtual device incompatible with this macOS system)"
+echo "💡 Vega TV app built successfully for future deployment"
+echo "💡 You can test the mobile app with the API server directly"
+TV_PID=""
 
 # Set up Android environment before starting emulator
 export ANDROID_HOME=$(get_android_sdk_path)
@@ -228,17 +220,18 @@ else
 fi
 
 echo ""
-echo "🎉 All apps started successfully!"
+echo "🎉 Development environment started successfully!"
 echo ""
 echo "📋 Running Services:"
 echo "   • API Server: http://localhost:8080"
-echo "   • Vega TV App: Running on virtual device"
+echo "   • Vega TV App: Built and ready (virtual device unavailable on this macOS)"
 echo "   • Mobile App: Running on Android device (if connected)"
 echo ""
-echo "🔗 To pair the apps:"
-echo "   1. Note the 6-digit code on the TV"
-echo "   2. Enter it in the mobile app"
-echo "   3. Click 'Pair TV'"
+echo "� Development Mode:"
+echo "   • Vega TV app is built but cannot run due to macOS compatibility issues"
+echo "   • Use the mobile app to test API integration"
+echo "   • The mobile app can connect directly to the API server"
+echo "   • TV pairing is not available in this mode"
 echo ""
 echo "🛑 To stop all apps, press Ctrl+C or run: pnpm run stop:all"
 echo ""
@@ -252,6 +245,10 @@ cleanup() {
         kill $TV_PID 2>/dev/null || true
         echo "✅ Vega TV app stopped"
     fi
+    
+    # Stop virtual device
+    kepler virtual-device stop > /dev/null 2>&1 || true
+    echo "✅ Virtual device stopped"
     
     if [ ! -z "$MOBILE_PID" ]; then
         kill $MOBILE_PID 2>/dev/null || true
@@ -270,10 +267,6 @@ cleanup() {
         # Also try to stop any running emulators gracefully
         adb emu kill > /dev/null 2>&1 || true
     fi
-    
-    # Stop virtual device
-    kepler virtual-device stop > /dev/null 2>&1 || true
-    echo "✅ Virtual device stopped"
     
     echo "👋 All apps stopped"
     exit 0
