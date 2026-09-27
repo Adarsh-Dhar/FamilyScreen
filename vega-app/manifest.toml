@@ -4,6 +4,7 @@ schema-version = 1
 title = "Family Screen TV App"
 version = "0.1.0"
 id = "com.familyscreen.vega"
+build_number = 3
 
 [os.version]
 min = "1.2"
@@ -20,7 +21,9 @@ id = "/com.amazon.kepler.keplerscript_4@IKeplerScript_0"
 id = "/com.amazon.kepler.runtime.react_native_kepler_4@IReactNativeKepler_0"
 
 [[needs.module]]
-id = "/com.amazon.kepler.webview_3@IWebview_3"
+id = "/com.amazon.kepler.webview_4@IWebview_4"
+
+
 
 
 [wants]
