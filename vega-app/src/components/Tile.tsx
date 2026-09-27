@@ -62,7 +62,15 @@ export const MatchTile = ({
           </Text>
           <Text style={styles.teamName}>{match.awayTeam}</Text>
         </View>
-        <Text style={styles.time}>{match.elapsedMinutes}'</Text>
+        <Text style={styles.time}>
+          {match.status === 'live' && match.elapsedMinutes > 0 
+            ? `${match.elapsedMinutes}'` 
+            : match.status === 'live' 
+              ? 'Live' 
+              : match.status === 'finished' 
+                ? 'FT' 
+                : 'NS'}
+        </Text>
       </View>
     </Pressable>
   );
@@ -70,7 +78,7 @@ export const MatchTile = ({
 
 const styles = StyleSheet.create({
   tile: {
-    width: 280,
+    width: '100%',
     height: 120,
     borderRadius: 12,
     overflow: 'hidden',
@@ -112,7 +120,8 @@ const styles = StyleSheet.create({
     marginHorizontal: 12,
   },
   time: {
-    color: '#666',
-    fontSize: 14,
+    color: '#FF6200',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

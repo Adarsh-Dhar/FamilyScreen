@@ -42,6 +42,20 @@ Get your API keys:
 - Frontend: React Native + Vega SDK
 - AI: Google Gemini 2.5 Flash
 
+## Football Agent (all 38 API-Football endpoints, 100 req/day budget)
+
+`artifacts/api-server/src/lib/football-agent/` gives the app access to the full API-Football v3
+surface (fixtures, standings, players, odds, predictions, transfers, trophies, etc.) through one
+agent that enforces the free plan's 100-requests/day cap via aggressive per-endpoint caching and a
+protected reserve for the live-score poll loop. See `docs/FOOTBALL_AGENT_DESIGN.md` for the
+architecture and `docs/API_FOOTBALL_ENDPOINTS.md` for the full endpoint reference.
+
+```bash
+curl -X POST http://localhost:8080/api/agent/ask -H 'content-type: application/json' \
+  -d '{"question": "what is the premier league table?"}'
+curl http://localhost:8080/api/agent/status   # today's quota usage
+```
+
 ## Where things live
 
 - `vega-app/` — Fire TV app for virtual device deployment

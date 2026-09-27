@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable, BackHandler } from "react-native";
 import { colors } from "../theme";
 import { getMatchState } from "../api";
 import { useMatchSocket } from "../useMatchSocket";
@@ -17,6 +17,16 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
   useEffect(() => {
     loadMatchState();
   }, [matchId]);
+
+  // Handle hardware back button from remote
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      onBack();
+      return true; // Prevent default behavior (exiting app)
+    });
+
+    return () => backHandler.remove();
+  }, [onBack]);
 
   async function loadMatchState() {
     try {
@@ -84,7 +94,15 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
           <Text style={styles.score}>
             {matchState.homeScore} - {matchState.awayScore}
           </Text>
-          <Text style={styles.time}>{matchState.elapsedMinutes}'</Text>
+          <Text style={styles.time}>
+            {matchState.status === 'live' && matchState.elapsedMinutes > 0 
+              ? `${matchState.elapsedMinutes}'` 
+              : matchState.status === 'live' 
+                ? 'Live' 
+                : matchState.status === 'finished' 
+                  ? 'FT' 
+                  : 'NS'}
+          </Text>
         </View>
         <Text style={styles.teamName}>{matchState.awayTeam}</Text>
       </View>
@@ -199,9 +217,10 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
   },
   time: {
-    color: "#666",
+    color: "#FF6200",
     fontSize: 18,
     marginTop: 4,
+    fontWeight: "600",
   },
   probabilitySection: {
     marginBottom: 30,

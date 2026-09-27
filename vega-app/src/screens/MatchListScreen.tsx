@@ -72,7 +72,7 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: colors.background,
-    padding: 20,
+    padding: 40,
   },
   loadingText: {
     color: colors.text,
@@ -105,5 +105,6 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingBottom: 20,
+    gap: 16,
   },
 });

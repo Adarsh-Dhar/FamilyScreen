@@ -1,3 +1,5 @@
+import { guardedCall } from "./football-agent/guarded-call";
+
 export type MatchEvent = {
   type: "goal" | "card" | "substitution" | "whistle";
   team: "home" | "away";
@@ -65,39 +67,36 @@ function calculateWinProbability(
   };
 }
 
+type LiveFixtureItem = {
+  fixture: { id: number };
+  teams: { home: { name: string }; away: { name: string } };
+  league: { name: string };
+  goals: { home: number | null; away: number | null };
+  status?: { elapsed: number | null; short: string };
+};
+
+/**
+ * Routed through `guardedCall` (football-agent) rather than a raw fetch: this respects the
+ * account-wide 100/day cap, the reserved live-poll budget, and the 60s cache TTL configured for
+ * "fixtures.live" in endpoints.ts, so polling on a short interval doesn't burn quota faster than
+ * the cache refreshes.
+ */
 async function fetchLiveFixtures(): Promise<Match[]> {
-  const apiKey = process.env.API_FOOTBALL_KEY;
-  if (!apiKey) {
+  const result = await guardedCall<LiveFixtureItem[]>("fixtures.live", { live: "all" }, { isLivePollCall: true });
+  if (!result.ok || !result.data) {
     return [];
   }
 
-  try {
-    const response = await fetch("https://api-football-v1.p.rapidapi.com/v3/fixtures?live=all", {
-      headers: {
-        "x-rapidapi-key": apiKey,
-        "x-rapidapi-host": "api-football-v1.p.rapidapi.com",
-      },
-    });
-
-    if (!response.ok) {
-      return [];
-    }
-
-    const data = await response.json() as { response?: Array<{ fixture: { id: number }; teams: { home: { name: string }; away: { name: string } }; league: { name: string }; goals: { home: number | null; away: number | null }; status: { elapsed: number | null; short: string } }> };
-    
-    return (data.response ?? []).map((item) => ({
-      matchId: String(item.fixture.id),
-      homeTeam: item.teams.home.name,
-      awayTeam: item.teams.away.name,
-      competition: item.league.name,
-      homeScore: item.goals.home ?? 0,
-      awayScore: item.goals.away ?? 0,
-      elapsedMinutes: item.status.elapsed ?? 0,
-      status: item.status.short === "FT" ? "finished" : item.status.short === "NS" ? "scheduled" : "live",
-    }));
-  } catch (error) {
-    return [];
-  }
+  return result.data.map((item) => ({
+    matchId: String(item.fixture.id),
+    homeTeam: item.teams.home.name,
+    awayTeam: item.teams.away.name,
+    competition: item.league.name,
+    homeScore: item.goals.home ?? 0,
+    awayScore: item.goals.away ?? 0,
+    elapsedMinutes: item.status?.elapsed ?? 0,
+    status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
+  }));
 }
 
 function getOrInitializeMatchState(match: Match): MatchState {
