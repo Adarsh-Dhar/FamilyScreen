@@ -1,59 +1,234 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, BackHandler } from "react-native";
 import { colors } from "../theme";
-import { getMatchState } from "../api";
-import { useMatchSocket } from "../useMatchSocket";
-import type { MatchState, CommentaryEntry } from "../types";
+import { getGameState, getMatchState, type SportId, type GameState, type GameSummary, type MatchState, type CommentaryEntry } from "../api";
+import { useGameSocket } from "../useMatchSocket";
 
-interface MatchScreenProps {
-  matchId: string;
+interface GameScreenProps {
+  sportId: SportId;
+  game: GameSummary;
   onBack: () => void;
 }
 
-export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
-  const [matchState, setMatchState] = useState<MatchState | null>(null);
+export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
+  const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadMatchState();
-  }, [matchId]);
+    loadGameState();
+  }, [sportId, game.gameId]);
 
-  // Handle hardware back button from remote
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       onBack();
-      return true; // Prevent default behavior (exiting app)
+      return true;
     });
-
     return () => backHandler.remove();
   }, [onBack]);
 
-  async function loadMatchState() {
+  async function loadGameState() {
     try {
-      const state = await getMatchState(matchId);
-      setMatchState(state);
+      const state = await getGameState(sportId, game.gameId);
+      setGameState(state);
     } catch (error) {
-      console.error("Failed to load match state:", error);
+      try {
+        const state = await getMatchState(game.gameId);
+        setGameState(state as unknown as GameState);
+      } catch (fallbackError) {
+        console.error("Failed to load game state:", error);
+      }
     } finally {
       setLoading(false);
     }
   }
 
-  const handleMatchUpdate = (updatedState: MatchState) => {
-    setMatchState(updatedState);
+  const handleGameUpdate = (updatedState: GameState) => {
+    setGameState(updatedState);
   };
 
   const handleCommentary = (commentary: CommentaryEntry) => {
-    if (matchState) {
-      setMatchState({
-        ...matchState,
-        commentary: [...matchState.commentary, commentary],
+    if (gameState) {
+      setGameState({
+        ...gameState,
+        commentary: [...gameState.commentary, commentary],
       });
     }
   };
 
-  // Use WebSocket for live updates
-  useMatchSocket(matchId, handleMatchUpdate, handleCommentary);
+  useGameSocket(sportId, game.gameId, handleGameUpdate, handleCommentary);
+
+  if (loading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Loading game...</Text>
+      </View>
+    );
+  }
+
+  if (!gameState) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.errorText}>Game not found</Text>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>Back to Games</Text>
+        </Pressable>
+      </View>
+    );
+  }
+
+  const showPredictions = sportId === "football";
+  const homeProb = gameState.currentWinProbability.home * 100;
+  const awayProb = gameState.currentWinProbability.away * 100;
+  const drawProb = gameState.aiPrediction ? gameState.aiPrediction.draw : 0;
+
+  return (
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>← Back</Text>
+        </Pressable>
+        <Text style={styles.competition}>{gameState.competition}</Text>
+      </View>
+
+      <View style={styles.scoreSection}>
+        <Text style={styles.teamName}>{gameState.homeTeam}</Text>
+        <View style={styles.scoreBox}>
+          <Text style={styles.score}>
+            {gameState.homeScore} - {gameState.awayScore}
+          </Text>
+          <Text style={styles.time}>
+            {gameState.status === 'live' && gameState.elapsedMinutes > 0 
+              ? `${gameState.elapsedMinutes}'` 
+              : gameState.status === 'live' 
+                ? 'Live' 
+                : gameState.status === 'finished' 
+                  ? 'FT' 
+                  : 'NS'}
+          </Text>
+        </View>
+        <Text style={styles.teamName}>{gameState.awayTeam}</Text>
+      </View>
+
+      {showPredictions && (
+        <View style={styles.probabilitySection}>
+          <Text style={styles.probabilityLabel}>AI Prediction</Text>
+          
+          {gameState.aiPredictionStatus === "loading" && (
+            <View style={styles.loadingContainer}>
+              <Text style={styles.loadingText}>Analyzing match data...</Text>
+            </View>
+          )}
+          
+          {gameState.aiPredictionStatus === "unavailable" && (
+            <View style={styles.unavailableContainer}>
+              <Text style={styles.unavailableText}>Prediction unavailable</Text>
+              <Text style={styles.unavailableSubtext}>Not enough data available</Text>
+            </View>
+          )}
+          
+          {gameState.aiPredictionStatus === "ready" && gameState.aiPrediction && (
+            <>
+              <View style={styles.probabilityBar}>
+                <View
+                  style={[
+                    styles.probabilityFill,
+                    { width: `${homeProb}%`, backgroundColor: "#0074B8" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.probabilityFill,
+                    { width: `${drawProb}%`, backgroundColor: "#888888" },
+                  ]}
+                />
+                <View
+                  style={[
+                    styles.probabilityFill,
+                    { width: `${awayProb}%`, backgroundColor: "#FF6200" },
+                  ]}
+                />
+              </View>
+              <View style={styles.probabilityLabels}>
+                <Text style={styles.probabilityText}>{homeProb.toFixed(0)}%</Text>
+                <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>
+                <Text style={styles.probabilityText}>{awayProb.toFixed(0)}%</Text>
+              </View>
+              <View style={styles.probabilityTeamLabels}>
+                <Text style={styles.teamLabel}>Home</Text>
+                <Text style={styles.teamLabel}>Draw</Text>
+                <Text style={styles.teamLabel}>Away</Text>
+              </View>
+              <View style={styles.rationaleContainer}>
+                <Text style={styles.rationaleText}>{gameState.aiPrediction.rationale}</Text>
+                <Text style={styles.confidenceText}>
+                  Confidence: {gameState.aiPrediction.confidence.toUpperCase()}
+                </Text>
+                <Text style={styles.dataSourcesText}>
+                  Based on: {gameState.aiPrediction.dataSources.join(", ")}
+                </Text>
+              </View>
+            </>
+          )}
+        </View>
+      )}
+
+      <View style={styles.commentarySection}>
+        <Text style={styles.commentaryHeader}>Live Commentary</Text>
+        <ScrollView style={styles.commentaryScroll}>
+          {gameState.commentary.length === 0 ? (
+            <Text style={styles.noCommentary}>No commentary yet</Text>
+          ) : (
+            gameState.commentary.map((entry: CommentaryEntry) => (
+              <View key={entry.id} style={styles.commentaryItem}>
+                <Text style={styles.commentaryTime}>
+                  {new Date(entry.timestamp).toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                  })}
+                </Text>
+                <Text style={styles.commentaryText}>{entry.text}</Text>
+              </View>
+            ))
+          )}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+// Legacy MatchScreen for backward compatibility
+export function MatchScreen({ matchId, onBack }: { matchId: string; onBack: () => void }) {
+  const [gameState, setGameState] = useState<MatchState | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadMatchState() {
+      try {
+        const state = await getMatchState(matchId);
+        setGameState(state);
+      } catch (error) {
+        console.error("Failed to load match state:", error);
+      } finally {
+        setLoading(false);
+      }
+    }
+    loadMatchState();
+  }, [matchId]);
+
+  const handleMatchUpdate = (updatedState: MatchState) => {
+    setGameState(updatedState);
+  };
+
+  const handleCommentary = (commentary: CommentaryEntry) => {
+    if (gameState) {
+      setGameState({
+        ...gameState,
+        commentary: [...gameState.commentary, commentary],
+      });
+    }
+  };
+
+  useGameSocket("football", matchId, handleMatchUpdate as any, handleCommentary);
 
   if (loading) {
     return (
@@ -63,7 +238,7 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
     );
   }
 
-  if (!matchState) {
+  if (!gameState) {
     return (
       <View style={styles.container}>
         <Text style={styles.errorText}>Match not found</Text>
@@ -74,58 +249,55 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
     );
   }
 
-  const homeProb = matchState.currentWinProbability.home * 100;
-  const awayProb = matchState.currentWinProbability.away * 100;
-  const drawProb = matchState.aiPrediction ? matchState.aiPrediction.draw : 0;
+  const homeProb = gameState.currentWinProbability.home * 100;
+  const awayProb = gameState.currentWinProbability.away * 100;
+  const drawProb = gameState.aiPrediction ? gameState.aiPrediction.draw : 0;
 
   return (
     <View style={styles.container}>
-      {/* Header with back button */}
       <View style={styles.header}>
         <Pressable style={styles.backButton} onPress={onBack}>
           <Text style={styles.backButtonText}>← Back</Text>
         </Pressable>
-        <Text style={styles.competition}>{matchState.competition}</Text>
+        <Text style={styles.competition}>{gameState.competition}</Text>
       </View>
 
-      {/* Score and time */}
       <View style={styles.scoreSection}>
-        <Text style={styles.teamName}>{matchState.homeTeam}</Text>
+        <Text style={styles.teamName}>{gameState.homeTeam}</Text>
         <View style={styles.scoreBox}>
           <Text style={styles.score}>
-            {matchState.homeScore} - {matchState.awayScore}
+            {gameState.homeScore} - {gameState.awayScore}
           </Text>
           <Text style={styles.time}>
-            {matchState.status === 'live' && matchState.elapsedMinutes > 0 
-              ? `${matchState.elapsedMinutes}'` 
-              : matchState.status === 'live' 
+            {gameState.status === 'live' && gameState.elapsedMinutes > 0 
+              ? `${gameState.elapsedMinutes}'` 
+              : gameState.status === 'live' 
                 ? 'Live' 
-                : matchState.status === 'finished' 
+                : gameState.status === 'finished' 
                   ? 'FT' 
                   : 'NS'}
           </Text>
         </View>
-        <Text style={styles.teamName}>{matchState.awayTeam}</Text>
+        <Text style={styles.teamName}>{gameState.awayTeam}</Text>
       </View>
 
-      {/* Win probability bar */}
       <View style={styles.probabilitySection}>
         <Text style={styles.probabilityLabel}>AI Prediction</Text>
         
-        {matchState.aiPredictionStatus === "loading" && (
+        {gameState.aiPredictionStatus === "loading" && (
           <View style={styles.loadingContainer}>
             <Text style={styles.loadingText}>Analyzing match data...</Text>
           </View>
         )}
         
-        {matchState.aiPredictionStatus === "unavailable" && (
+        {gameState.aiPredictionStatus === "unavailable" && (
           <View style={styles.unavailableContainer}>
             <Text style={styles.unavailableText}>Prediction unavailable</Text>
             <Text style={styles.unavailableSubtext}>Not enough data available</Text>
           </View>
         )}
         
-        {matchState.aiPredictionStatus === "ready" && matchState.aiPrediction && (
+        {gameState.aiPredictionStatus === "ready" && gameState.aiPrediction && (
           <>
             <View style={styles.probabilityBar}>
               <View
@@ -158,26 +330,25 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
               <Text style={styles.teamLabel}>Away</Text>
             </View>
             <View style={styles.rationaleContainer}>
-              <Text style={styles.rationaleText}>{matchState.aiPrediction.rationale}</Text>
+              <Text style={styles.rationaleText}>{gameState.aiPrediction.rationale}</Text>
               <Text style={styles.confidenceText}>
-                Confidence: {matchState.aiPrediction.confidence.toUpperCase()}
+                Confidence: {gameState.aiPrediction.confidence.toUpperCase()}
               </Text>
               <Text style={styles.dataSourcesText}>
-                Based on: {matchState.aiPrediction.dataSources.join(", ")}
+                Based on: {gameState.aiPrediction.dataSources.join(", ")}
               </Text>
             </View>
           </>
         )}
       </View>
 
-      {/* Commentary feed */}
       <View style={styles.commentarySection}>
         <Text style={styles.commentaryHeader}>Live Commentary</Text>
         <ScrollView style={styles.commentaryScroll}>
-          {matchState.commentary.length === 0 ? (
+          {gameState.commentary.length === 0 ? (
             <Text style={styles.noCommentary}>No commentary yet</Text>
           ) : (
-            matchState.commentary.map((entry: CommentaryEntry) => (
+            gameState.commentary.map((entry: CommentaryEntry) => (
               <View key={entry.id} style={styles.commentaryItem}>
                 <Text style={styles.commentaryTime}>
                   {new Date(entry.timestamp).toLocaleTimeString([], {
@@ -276,10 +447,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
     alignItems: "center",
-  },
-  loadingText: {
-    color: "#888",
-    fontSize: 16,
   },
   unavailableContainer: {
     backgroundColor: "#1a1a2e",

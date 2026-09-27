@@ -1,8 +1,7 @@
-import { getEndpoint } from "./endpoints";
-import { getFootballApiClient } from "./client";
-import { getQuotaManager } from "../sports/core/quota";
-import { getFootballCache, TtlCache } from "../sports/core/cache";
-import type { AgentCallLog } from "./types";
+import type { AgentCallLog, EndpointDefinition } from "../../football-agent/types";
+import { getApiSportsClient } from "./http-client";
+import { getQuotaManager } from "./quota";
+import { getSportsCache, TtlCache } from "./cache";
 
 export interface GuardedCallResult<T> {
   data: T | undefined;
@@ -13,7 +12,7 @@ export interface GuardedCallResult<T> {
 }
 
 /**
- * The single choke point every real network call to api-football goes through:
+ * The single choke point every real network call to api-sports goes through:
  *   1. Check cache first — a hit costs nothing and doesn't touch quota.
  *   2. On a miss, ask the QuotaManager for permission (account-wide cap + per-endpoint vendor cap
  *      + live-poll reserve).
@@ -23,13 +22,15 @@ export interface GuardedCallResult<T> {
  *      have that right now" is the better fallback.
  */
 export async function guardedCall<T = unknown>(
+  sportId: string,
   endpointKey: string,
+  path: string,
+  endpointDef: EndpointDefinition,
   params: Record<string, string | number | boolean | undefined> = {},
   opts: { isLivePollCall?: boolean; log?: AgentCallLog[] } = {},
 ): Promise<GuardedCallResult<T>> {
-  const def = getEndpoint(endpointKey);
-  const cache = getFootballCache();
-  const cacheKey = TtlCache.buildKey(endpointKey, params);
+  const cache = getSportsCache(sportId);
+  const cacheKey = TtlCache.buildKey(sportId, endpointKey, params);
 
   const cached = cache.get<T>(cacheKey);
   if (cached !== undefined) {
@@ -37,20 +38,20 @@ export async function guardedCall<T = unknown>(
     return { data: cached, fromCache: true, ok: true };
   }
 
-  const quota = getQuotaManager();
+  const quota = getQuotaManager(sportId);
   const permission = quota.canSpend(endpointKey, opts.isLivePollCall ?? false);
   if (!permission.allowed) {
     return { data: undefined, fromCache: false, ok: false, reason: permission.reason };
   }
 
-  const client = getFootballApiClient();
+  const client = getApiSportsClient(sportId);
   if (!client) {
-    return { data: undefined, fromCache: false, ok: false, reason: "API_FOOTBALL_KEY is not configured." };
+    return { data: undefined, fromCache: false, ok: false, reason: "API_SPORTS_KEY is not configured." };
   }
 
-  const response = await client.fetch<T>(endpointKey, params);
+  const response = await client.fetch<T>(endpointKey, path, params);
   quota.spend(endpointKey);
-  cache.set(cacheKey, response, def.cacheTtlSeconds);
+  cache.set(cacheKey, response, endpointDef.cacheTtlSeconds);
   opts.log?.push({ endpointKey, params: stringifyParams(params), fromCache: false, timestamp: Date.now() });
 
   return { data: response, fromCache: false, ok: true };

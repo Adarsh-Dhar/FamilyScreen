@@ -2,6 +2,10 @@ import { API_BASE_URL } from "./config";
 import type {
   MatchesResponse,
   MatchState,
+  GamesResponse,
+  GameState,
+  SportsResponse,
+  SportId,
 } from "./types";
 
 async function request<T>(path: string, init?: {
@@ -20,17 +24,39 @@ async function request<T>(path: string, init?: {
   return res.json() as Promise<T>;
 }
 
-// GET /matches — list of currently live/selectable matches
+// Multi-sport endpoints
+export function getSports() {
+  return request<SportsResponse>("/sports");
+}
+
+export function getLiveGames(sportId: SportId) {
+  return request<GamesResponse>(`/${sportId}/games`);
+}
+
+export function getPastGames(sportId: SportId) {
+  return request<GamesResponse>(`/${sportId}/games/past`);
+}
+
+export function getGameState(sportId: SportId, gameId: string) {
+  return request<GameState>(`/${sportId}/games/${encodeURIComponent(gameId)}`);
+}
+
+export function askGameQuestion(sportId: SportId, gameId: string, question: string) {
+  return request<{ answer: string }>(`/${sportId}/games/${encodeURIComponent(gameId)}/ask`, {
+    method: "POST",
+    body: JSON.stringify({ question }),
+  });
+}
+
+// Legacy football endpoints (for backward compatibility)
 export function getLiveMatches() {
   return request<MatchesResponse>("/matches");
 }
 
-// GET /matches/:id — full state for one match
 export function getMatchState(matchId: string) {
   return request<MatchState>(`/matches/${encodeURIComponent(matchId)}`);
 }
 
-// POST /matches/:id/ask — optional Q&A endpoint (stretch goal)
 export function askQuestion(matchId: string, question: string) {
   return request<{ answer: string }>(`/matches/${encodeURIComponent(matchId)}/ask`, {
     method: "POST",

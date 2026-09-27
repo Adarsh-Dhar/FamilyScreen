@@ -1,7 +1,37 @@
 // Mirrors backend sports-data.ts — keep these in sync with the backend schema.
 
-export interface MatchEvent {
-  type: "goal" | "card" | "substitution" | "whistle";
+export type SportId =
+  | "football"
+  | "basketball"
+  | "baseball"
+  | "hockey"
+  | "handball"
+  | "volleyball"
+  | "rugby"
+  | "afl"
+  | "nfl"
+  | "nba"
+  | "formula1"
+  | "mma";
+
+export type SportKind = "team-game" | "motorsport" | "combat";
+
+export interface SportDefinition {
+  id: SportId;
+  label: string;
+  icon: string;
+  kind: SportKind;
+  hasPredictions: boolean;
+  hasLiveGames: boolean;
+  hasStandings: boolean;
+  hasTeams: boolean;
+  hasHeadToHead: boolean;
+  description: string;
+}
+
+// Generic sport types
+export interface GameEvent {
+  type: "score" | "timeout" | "foul" | "substitution" | "whistle" | "goal" | "card";
   team: "home" | "away";
   minute: number;
   description: string;
@@ -12,6 +42,50 @@ export interface CommentaryEntry {
   timestamp: string;
   text: string;
 }
+
+export interface GameState {
+  gameId: string;
+  sportId: SportId;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
+  competition: string;
+  homeScore: number | { total: number };
+  awayScore: number | { total: number };
+  elapsedMinutes: number;
+  status: "live" | "finished" | "scheduled";
+  events: GameEvent[];
+  commentary: CommentaryEntry[];
+  // Football-specific prediction data
+  aiPrediction: MatchPrediction | null;
+  aiPredictionStatus: "loading" | "ready" | "unavailable";
+  currentWinProbability: { home: number; away: number };
+  winProbabilityHistory: Array<{ home: number; away: number; timestamp: string }>;
+}
+
+export interface GameSummary {
+  gameId: string;
+  sportId: SportId;
+  homeTeam: string;
+  awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
+  competition: string;
+  homeScore: number | { total: number };
+  awayScore: number | { total: number };
+  elapsedMinutes: number;
+  status: "live" | "finished" | "scheduled";
+}
+
+// Football-specific types (for backward compatibility)
+export type MatchEvent = GameEvent;
+export type MatchState = GameState;
+export type Match = GameSummary;
 
 export interface WinProbabilitySnapshot {
   home: number;
@@ -28,55 +102,36 @@ export interface MatchPrediction {
   dataSources: string[];
 }
 
-export interface MatchState {
-  matchId: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeTeamId: number;
-  awayTeamId: number;
-  leagueId: number;
-  season: number;
-  competition: string;
-  homeScore: number;
-  awayScore: number;
-  elapsedMinutes: number;
-  status: "live" | "finished" | "scheduled";
-  events: MatchEvent[];
-  commentary: CommentaryEntry[];
-  winProbabilityHistory: WinProbabilitySnapshot[];
-  currentWinProbability: { home: number; away: number };
-  aiPrediction: MatchPrediction | null;
-  aiPredictionStatus: "loading" | "ready" | "unavailable";
-}
-
-export interface Match {
-  matchId: string;
-  homeTeam: string;
-  awayTeam: string;
-  homeTeamId: number;
-  awayTeamId: number;
-  leagueId: number;
-  season: number;
-  competition: string;
-  homeScore: number;
-  awayScore: number;
-  elapsedMinutes: number;
-  status: "live" | "finished" | "scheduled";
-}
-
 export interface MatchesResponse {
   matches: Match[];
 }
 
+export interface GamesResponse {
+  games: GameSummary[];
+}
+
+export interface SportsResponse {
+  sports: SportDefinition[];
+}
+
 // WebSocket frames
-export interface MatchUpdateFrame {
-  type: "match_update";
-  matchId: string;
-  state: MatchState;
+export interface GameUpdateFrame {
+  type: "game_update";
+  gameId: string;
+  sportId: SportId;
+  state: GameState;
 }
 
 export interface CommentaryFrame {
   type: "commentary";
-  matchId: string;
+  gameId: string;
+  sportId: SportId;
   commentary: CommentaryEntry;
+}
+
+// Legacy football WebSocket frames (for backward compatibility)
+export interface MatchUpdateFrame {
+  type: "match_update";
+  matchId: string;
+  state: MatchState;
 }

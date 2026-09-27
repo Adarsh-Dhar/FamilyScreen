@@ -1,24 +1,25 @@
 import { useEffect, useRef } from "react";
 import { WS_URL } from "./config";
-import type { MatchState, CommentaryEntry } from "./types";
+import type { MatchState, CommentaryEntry, GameState, SportId } from "./types";
 
-// WebSocket hook for live match updates
-// Registers with matchId and receives match_update and commentary frames
-export function useMatchSocket(
-  matchId: string,
-  onMatchUpdate: (state: MatchState) => void,
+// WebSocket hook for live game updates (multi-sport)
+// Registers with sportId + gameId and receives game_update and commentary frames
+export function useGameSocket(
+  sportId: SportId,
+  gameId: string,
+  onGameUpdate: (state: GameState) => void,
   onCommentary: (commentary: CommentaryEntry) => void
 ) {
-  const onMatchUpdateRef = useRef(onMatchUpdate);
+  const onGameUpdateRef = useRef(onGameUpdate);
   const onCommentaryRef = useRef(onCommentary);
 
   useEffect(() => {
-    onMatchUpdateRef.current = onMatchUpdate;
+    onGameUpdateRef.current = onGameUpdate;
     onCommentaryRef.current = onCommentary;
-  }, [onMatchUpdate, onCommentary]);
+  }, [onGameUpdate, onCommentary]);
 
   useEffect(() => {
-    if (!matchId) return;
+    if (!gameId || !sportId) return;
     let socket: WebSocket | null = null;
     let disposed = false;
     let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -27,14 +28,14 @@ export function useMatchSocket(
       if (disposed) return;
       socket = new WebSocket(WS_URL);
       socket.onopen = () => {
-        socket?.send(JSON.stringify({ type: "register", matchId }));
+        socket?.send(JSON.stringify({ type: "register", sportId, gameId }));
       };
       socket.onmessage = (event) => {
         try {
           const payload = JSON.parse(event.data);
           
-          if (payload.type === "match_update" && payload.state) {
-            onMatchUpdateRef.current(payload.state);
+          if (payload.type === "game_update" && payload.state) {
+            onGameUpdateRef.current(payload.state);
           } else if (payload.type === "commentary" && payload.commentary) {
             onCommentaryRef.current(payload.commentary);
           }
@@ -55,5 +56,14 @@ export function useMatchSocket(
       if (reconnectTimer) clearTimeout(reconnectTimer);
       socket?.close();
     };
-  }, [matchId]);
+  }, [sportId, gameId]);
+}
+
+// Legacy football WebSocket hook (for backward compatibility)
+export function useMatchSocket(
+  matchId: string,
+  onMatchUpdate: (state: MatchState) => void,
+  onCommentary: (commentary: CommentaryEntry) => void
+) {
+  return useGameSocket("football", matchId, onMatchUpdate, onCommentary);
 }

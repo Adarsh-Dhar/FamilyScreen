@@ -1,4 +1,5 @@
-import { guardedCall } from "./football-agent/guarded-call";
+import { guardedCall } from "./sports/core/guarded-call";
+import { getSportEndpoint } from "./sports/endpoints";
 import type { AgentCallLog } from "./football-agent/types";
 
 export interface MatchPrediction {
@@ -41,9 +42,9 @@ export async function generateMatchPrediction(
   // Use Promise.allSettled to handle individual failures gracefully
   // Reduced to 3 calls to avoid rate limiting while still providing good data
   const [homeStats, awayStats, h2h] = await Promise.allSettled([
-    guardedCall("teams.statistics", { league: leagueId, season: cappedSeason, team: homeTeamId }, { log }),
-    guardedCall("teams.statistics", { league: leagueId, season: cappedSeason, team: awayTeamId }, { log }),
-    guardedCall("fixtures.headtohead", { h2h: `${homeTeamId}-${awayTeamId}` }, { log }),
+    guardedCall("football", "teams.statistics", getSportEndpoint("football", "teams.statistics").path, getSportEndpoint("football", "teams.statistics"), { league: leagueId, season: cappedSeason, team: homeTeamId }, { log }),
+    guardedCall("football", "teams.statistics", getSportEndpoint("football", "teams.statistics").path, getSportEndpoint("football", "teams.statistics"), { league: leagueId, season: cappedSeason, team: awayTeamId }, { log }),
+    guardedCall("football", "fixtures.headtohead", getSportEndpoint("football", "fixtures.headtohead").path, getSportEndpoint("football", "fixtures.headtohead"), { h2h: `${homeTeamId}-${awayTeamId}` }, { log }),
   ]);
 
   // Collect available data sources for transparency

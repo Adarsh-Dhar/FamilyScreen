@@ -1,5 +1,6 @@
 import type { ApiFootballEnvelope, FootballClientConfig, Provider } from "./types";
 import { getEndpoint } from "./endpoints";
+import { getApiSportsClient } from "../sports/core/http-client";
 
 const HOSTS: Record<Provider, string> = {
   "api-sports": "https://v3.football.api-sports.io",
@@ -104,4 +105,9 @@ export function getFootballApiClient(): FootballApiClient | undefined {
 
   sharedClient = new FootballApiClient({ apiKey, provider });
   return sharedClient;
+}
+
+// Backward compatibility: use the new core client for multi-sport support
+export function getApiClient() {
+  return getApiSportsClient("football");
 }

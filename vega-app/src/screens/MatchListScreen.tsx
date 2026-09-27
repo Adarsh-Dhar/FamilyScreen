@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView } from "react-native";
+import { StyleSheet, Text, View, ScrollView, Pressable } from "react-native";
 import { colors } from "../theme";
 import { getLiveMatches } from "../api";
 import { MatchTile } from "../components/Tile";
@@ -7,9 +7,10 @@ import type { Match } from "../types";
 
 interface MatchListScreenProps {
   onSelectMatch: (matchId: string) => void;
+  onBack?: () => void;
 }
 
-export default function MatchListScreen({ onSelectMatch }: MatchListScreenProps) {
+export default function MatchListScreen({ onSelectMatch, onBack }: MatchListScreenProps) {
   const [matches, setMatches] = useState<Match[]>([]);
   const [focusedIndex, setFocusedIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -51,6 +52,11 @@ export default function MatchListScreen({ onSelectMatch }: MatchListScreenProps)
 
   return (
     <View style={styles.container}>
+      {onBack && (
+        <Pressable style={styles.backButton} onPress={onBack}>
+          <Text style={styles.backButtonText}>← Back to Sports</Text>
+        </Pressable>
+      )}
       <Text style={styles.header}>Live Matches</Text>
       <ScrollView style={styles.scrollContainer} contentContainerStyle={styles.scrollContent}>
         {matches.map((match, index) => (
@@ -73,6 +79,15 @@ const styles = StyleSheet.create({
     flex: 1,
     backgroundColor: colors.background,
     padding: 40,
+  },
+  backButton: {
+    padding: 10,
+    marginBottom: 10,
+  },
+  backButtonText: {
+    color: "#FF6200",
+    fontSize: 18,
+    fontWeight: "bold",
   },
   loadingText: {
     color: colors.text,
