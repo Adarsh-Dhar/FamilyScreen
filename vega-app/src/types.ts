@@ -53,8 +53,8 @@ export interface GameState {
   leagueId: number;
   season: number;
   competition: string;
-  homeScore: number | { total: number };
-  awayScore: number | { total: number };
+  homeScore: number;
+  awayScore: number;
   elapsedMinutes: number;
   status: "live" | "finished" | "scheduled";
   events: GameEvent[];
@@ -62,8 +62,8 @@ export interface GameState {
   // Football-specific prediction data
   aiPrediction: MatchPrediction | null;
   aiPredictionStatus: "loading" | "ready" | "unavailable";
-  currentWinProbability: { home: number; away: number };
-  winProbabilityHistory: Array<{ home: number; away: number; timestamp: string }>;
+  currentWinProbability: { home: number; away: number; draw: number };
+  winProbabilityHistory: Array<{ home: number; away: number; draw: number; timestamp: string }>;
 }
 
 export interface GameSummary {
@@ -76,8 +76,8 @@ export interface GameSummary {
   leagueId: number;
   season: number;
   competition: string;
-  homeScore: number | { total: number };
-  awayScore: number | { total: number };
+  homeScore: number;
+  awayScore: number;
   elapsedMinutes: number;
   status: "live" | "finished" | "scheduled";
 }

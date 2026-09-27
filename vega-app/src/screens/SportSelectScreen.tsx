@@ -5,6 +5,7 @@ import { getSports, type SportDefinition } from "../api";
 
 interface SportSelectScreenProps {
   onSportSelect: (sport: SportDefinition) => void;
+  onBack?: () => void;
 }
 
 // Fallback sports data in case API fails
@@ -23,7 +24,7 @@ const FALLBACK_SPORTS: SportDefinition[] = [
   { id: "mma", label: "MMA", icon: "🥊", kind: "combat", hasPredictions: false, hasLiveGames: false, hasStandings: false, hasTeams: false, hasHeadToHead: false, description: "MMA fights and fighter rankings" },
 ];
 
-export default function SportSelectScreen({ onSportSelect, onBack }: SportSelectScreenProps) {
+export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: SportSelectScreenProps) {
   const [sports, setSports] = useState<SportDefinition[]>([]);
   const [loading, setLoading] = useState(true);
 

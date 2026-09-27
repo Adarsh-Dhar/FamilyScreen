@@ -6,7 +6,11 @@ import type {
   GameState,
   SportsResponse,
   SportId,
+  GameSummary,
+  SportDefinition,
 } from "./types";
+
+export type { SportId, GameSummary, SportDefinition };
 
 async function request<T>(path: string, init?: {
   method?: string;

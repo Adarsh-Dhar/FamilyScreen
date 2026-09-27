@@ -19,6 +19,7 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
 
   useEffect(() => {
     loadGames();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sportId, filter]);
 
   // Handle hardware back button from remote
@@ -127,7 +128,7 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
                 
                 <View style={styles.scoreBox}>
                   <Text style={styles.score}>
-                    {typeof game.homeScore === 'object' ? game.homeScore.total : game.homeScore} - {typeof game.awayScore === 'object' ? game.awayScore.total : game.awayScore}
+                    {game.homeScore} - {game.awayScore}
                   </Text>
                 </View>
                 

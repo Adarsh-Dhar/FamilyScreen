@@ -16,6 +16,7 @@ export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
 
   useEffect(() => {
     loadGameState();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sportId, game.gameId]);
 
   useEffect(() => {
@@ -77,9 +78,9 @@ export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
   }
 
   const showPredictions = sportId === "football";
-  const homeProb = gameState.currentWinProbability.home * 100;
-  const awayProb = gameState.currentWinProbability.away * 100;
-  const drawProb = gameState.aiPrediction ? gameState.aiPrediction.draw : 0;
+  const homeProb = (gameState.currentWinProbability?.home ?? 0) * 100;
+  const awayProb = (gameState.currentWinProbability?.away ?? 0) * 100;
+  const drawProb = (gameState.currentWinProbability?.draw ?? 0) * 100;
 
   return (
     <View style={styles.container}>

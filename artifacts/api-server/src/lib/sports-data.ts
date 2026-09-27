@@ -28,8 +28,8 @@ export type GameState = {
   leagueId: number;
   season: number;
   competition: string;
-  homeScore: number | { total: number };
-  awayScore: number | { total: number };
+  homeScore: number;
+  awayScore: number;
   elapsedMinutes: number;
   status: "live" | "finished" | "scheduled";
   events: GameEvent[];
@@ -37,8 +37,8 @@ export type GameState = {
   // Football-specific prediction data
   aiPrediction: MatchPrediction | null;
   aiPredictionStatus: "loading" | "ready" | "unavailable";
-  currentWinProbability: { home: number; away: number };
-  winProbabilityHistory: Array<{ home: number; away: number; timestamp: Date }>;
+  currentWinProbability: { home: number; away: number; draw: number };
+  winProbabilityHistory: Array<{ home: number; away: number; draw: number; timestamp: Date }>;
 };
 
 export type GameSummary = {
@@ -51,8 +51,8 @@ export type GameSummary = {
   leagueId: number;
   season: number;
   competition: string;
-  homeScore: number | { total: number };
-  awayScore: number | { total: number };
+  homeScore: number;
+  awayScore: number;
   elapsedMinutes: number;
   status: "live" | "finished" | "scheduled";
 };
@@ -156,12 +156,14 @@ async function fetchGames(sportId: SportId, statusFilter: "live" | "past" | "all
     
     if (sportId === "baseball") {
       // Baseball has nested score structure
-      homeScore = (item.scores.home as any)?.total ?? 0;
-      awayScore = (item.scores.away as any)?.total ?? 0;
+      const homeScoreObj = item.scores.home as unknown as { total: number } | number;
+      const awayScoreObj = item.scores.away as unknown as { total: number } | number;
+      homeScore = typeof homeScoreObj === 'object' ? homeScoreObj.total : homeScoreObj;
+      awayScore = typeof awayScoreObj === 'object' ? awayScoreObj.total : awayScoreObj;
     } else {
       // Default score structure
-      homeScore = item.scores.home ?? 0;
-      awayScore = item.scores.away ?? 0;
+      homeScore = item.scores.home as number ?? 0;
+      awayScore = item.scores.away as number ?? 0;
     }
     
     return {
@@ -213,7 +215,7 @@ function getOrInitializeGameState(game: GameSummary): GameState {
     commentary: [],
     aiPrediction: null,
     aiPredictionStatus: "loading",
-    currentWinProbability: { home: 0.5, away: 0.5 },
+    currentWinProbability: { home: 0.5, away: 0.5, draw: 0 },
     winProbabilityHistory: [],
   };
 
@@ -302,7 +304,7 @@ export async function pollLiveGames(
         leagueId: game.leagueId,
         season: game.season,
         homeTeamName: game.homeTeam,
-        awayTeamName: game.away,
+        awayTeamName: game.awayTeam,
       }).then((prediction) => {
         const state = sportGames.get(sportId)?.get(game.gameId);
         if (state) {
@@ -316,6 +318,7 @@ export async function pollLiveGames(
             state.currentWinProbability = {
               home: prediction.homeWin / 100,
               away: prediction.awayWin / 100,
+              draw: prediction.draw / 100,
             };
           }
           onUpdate(game.gameId, state);
@@ -344,16 +347,6 @@ export function getLiveGames(sportId: SportId): GameSummary[] {
   return Array.from(gamesMap.values())
     .filter((state) => state.status === "live" || state.status === "scheduled")
     .map((state) => {
-      // Handle different score formats across sports
-      let homeScore = state.homeScore;
-      let awayScore = state.awayScore;
-      
-      if (sportId === "baseball") {
-        // Baseball stores scores as objects with total property
-        homeScore = (state.homeScore as any)?.total ?? state.homeScore;
-        awayScore = (state.awayScore as any)?.total ?? state.awayScore;
-      }
-      
       return {
         gameId: state.gameId,
         sportId: state.sportId,
@@ -364,8 +357,8 @@ export function getLiveGames(sportId: SportId): GameSummary[] {
         leagueId: state.leagueId,
         season: state.season,
         competition: state.competition,
-        homeScore,
-        awayScore,
+        homeScore: state.homeScore,
+        awayScore: state.awayScore,
         elapsedMinutes: state.elapsedMinutes,
         status: state.status,
       };
@@ -406,11 +399,13 @@ export async function fetchGameById(sportId: SportId, gameId: string): Promise<G
   let awayScore = 0;
   
   if (sportId === "baseball") {
-    homeScore = (item.scores.home as any)?.total ?? 0;
-    awayScore = (item.scores.away as any)?.total ?? 0;
+    const homeScoreObj = item.scores.home as unknown as { total: number } | number;
+    const awayScoreObj = item.scores.away as unknown as { total: number } | number;
+    homeScore = typeof homeScoreObj === 'object' ? homeScoreObj.total : homeScoreObj;
+    awayScore = typeof awayScoreObj === 'object' ? awayScoreObj.total : awayScoreObj;
   } else {
-    homeScore = item.scores.home ?? 0;
-    awayScore = item.scores.away ?? 0;
+    homeScore = item.scores.home as number ?? 0;
+    awayScore = item.scores.away as number ?? 0;
   }
   
   return {
@@ -428,6 +423,11 @@ export async function fetchGameById(sportId: SportId, gameId: string): Promise<G
     elapsedMinutes: item.status?.elapsed ?? 0,
     status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
     commentary: [],
+    events: [],
+    aiPrediction: null,
+    aiPredictionStatus: "unavailable",
+    currentWinProbability: { home: 0, away: 0, draw: 0 },
+    winProbabilityHistory: [],
   };
 }
 
@@ -506,7 +506,7 @@ function getOrInitializeMatchState(match: Match): MatchState {
     events: [],
     commentary: [],
     winProbabilityHistory: [],
-    currentWinProbability: { home: 0.5, away: 0.5 },
+    currentWinProbability: { home: 0.5, away: 0.5, draw: 0 },
     aiPrediction: null,
     aiPredictionStatus: "loading",
   };
@@ -591,6 +591,7 @@ export async function pollLiveMatches(onUpdate: (matchId: string, state: MatchSt
             state.currentWinProbability = {
               home: prediction.homeWin / 100,
               away: prediction.awayWin / 100,
+              draw: prediction.draw / 100,
             };
           }
           onUpdate(match.gameId, state);
