@@ -42,10 +42,7 @@ async function handleMatchUpdate(matchId: string, state: MatchState) {
   const recentEvents = state.events.slice(-3).map(e => e.description);
   const scoreChanged = state.events.length > 0 && state.events[state.events.length - 1].type === "goal";
   
-  if (scoreChanged || state.winProbabilityHistory.length > 0) {
-    const lastProb = state.winProbabilityHistory[state.winProbabilityHistory.length - 2];
-    const currentProb = state.currentWinProbability;
-    
+  if (scoreChanged) {
     const context: CommentaryContext = {
       homeTeam: state.homeTeam,
       awayTeam: state.awayTeam,
@@ -54,12 +51,6 @@ async function handleMatchUpdate(matchId: string, state: MatchState) {
       elapsedMinutes: state.elapsedMinutes,
       recentEvents,
       scoreChange: scoreChanged,
-      probabilityChange: lastProb ? {
-        oldHome: lastProb.home,
-        newHome: currentProb.home,
-        oldAway: lastProb.away,
-        newAway: currentProb.away,
-      } : undefined,
     };
     
     const commentary = await generateCommentary(context);

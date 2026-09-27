@@ -1,4 +1,5 @@
 import { guardedCall } from "./football-agent/guarded-call";
+import { generateMatchPrediction, type MatchPrediction } from "./predict";
 
 export type MatchEvent = {
   type: "goal" | "card" | "substitution" | "whistle";
@@ -23,6 +24,10 @@ export type MatchState = {
   matchId: string;
   homeTeam: string;
   awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
   competition: string;
   homeScore: number;
   awayScore: number;
@@ -32,12 +37,18 @@ export type MatchState = {
   commentary: CommentaryEntry[];
   winProbabilityHistory: WinProbabilitySnapshot[];
   currentWinProbability: { home: number; away: number };
+  aiPrediction: MatchPrediction | null;
+  aiPredictionStatus: "loading" | "ready" | "unavailable";
 };
 
 export type Match = {
   matchId: string;
   homeTeam: string;
   awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
   competition: string;
   homeScore: number;
   awayScore: number;
@@ -46,31 +57,12 @@ export type Match = {
 };
 
 const matches = new Map<string, MatchState>();
-
-function calculateWinProbability(
-  homeScore: number,
-  awayScore: number,
-  elapsedMinutes: number,
-  homeTeam: string,
-  awayTeam: string
-): { home: number; away: number } {
-  const scoreDifferential = homeScore - awayScore;
-  const timeWeight = Math.min(elapsedMinutes / 90, 1);
-  const homeAdvantage = 0.05;
-  
-  let homeProb = 0.5 + homeAdvantage + (scoreDifferential * 0.15 * timeWeight);
-  homeProb = Math.max(0.05, Math.min(0.95, homeProb));
-  
-  return {
-    home: Math.round(homeProb * 100) / 100,
-    away: Math.round((1 - homeProb) * 100) / 100,
-  };
-}
+const predictedFixtures = new Set<string>(); // Track fixtures we've already predicted
 
 type LiveFixtureItem = {
   fixture: { id: number };
-  teams: { home: { name: string }; away: { name: string } };
-  league: { name: string };
+  teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+  league: { id: number; name: string; season: number };
   goals: { home: number | null; away: number | null };
   status?: { elapsed: number | null; short: string };
 };
@@ -91,6 +83,10 @@ async function fetchLiveFixtures(): Promise<Match[]> {
     matchId: String(item.fixture.id),
     homeTeam: item.teams.home.name,
     awayTeam: item.teams.away.name,
+    homeTeamId: item.teams.home.id,
+    awayTeamId: item.teams.away.id,
+    leagueId: item.league.id,
+    season: item.league.season,
     competition: item.league.name,
     homeScore: item.goals.home ?? 0,
     awayScore: item.goals.away ?? 0,
@@ -109,6 +105,10 @@ function getOrInitializeMatchState(match: Match): MatchState {
     matchId: match.matchId,
     homeTeam: match.homeTeam,
     awayTeam: match.awayTeam,
+    homeTeamId: match.homeTeamId,
+    awayTeamId: match.awayTeamId,
+    leagueId: match.leagueId,
+    season: match.season,
     competition: match.competition,
     homeScore: match.homeScore,
     awayScore: match.awayScore,
@@ -117,13 +117,9 @@ function getOrInitializeMatchState(match: Match): MatchState {
     events: [],
     commentary: [],
     winProbabilityHistory: [],
-    currentWinProbability: calculateWinProbability(
-      match.homeScore,
-      match.awayScore,
-      match.elapsedMinutes,
-      match.homeTeam,
-      match.awayTeam
-    ),
+    currentWinProbability: { home: 0.5, away: 0.5 },
+    aiPrediction: null,
+    aiPredictionStatus: "loading",
   };
 
   matches.set(match.matchId, newState);
@@ -180,29 +176,50 @@ export async function pollLiveMatches(onUpdate: (matchId: string, state: MatchSt
       newState.events.push(...newEvents);
     }
     
-    const newWinProbability = calculateWinProbability(
-      match.homeScore,
-      match.awayScore,
-      match.elapsedMinutes,
-      match.homeTeam,
-      match.awayTeam
-    );
-    
-    if (!oldState || 
-        oldState.currentWinProbability.home !== newWinProbability.home ||
-        oldState.currentWinProbability.away !== newWinProbability.away) {
-      newState.currentWinProbability = newWinProbability;
-      newState.winProbabilityHistory.push({
-        home: newWinProbability.home,
-        away: newWinProbability.away,
-        timestamp: new Date(),
+    // Trigger AI prediction only on first sight of a fixture (fire-and-forget)
+    if (!oldState && !predictedFixtures.has(match.matchId)) {
+      predictedFixtures.add(match.matchId);
+      
+      // Generate prediction in background, don't block the poll
+      generateMatchPrediction({
+        fixtureId: Number(match.matchId),
+        homeTeamId: match.homeTeamId,
+        awayTeamId: match.awayTeamId,
+        leagueId: match.leagueId,
+        season: match.season,
+        homeTeamName: match.homeTeam,
+        awayTeamName: match.awayTeam,
+      }).then((prediction) => {
+        const state = matches.get(match.matchId);
+        if (state) {
+          if (prediction) {
+            state.aiPrediction = prediction;
+            state.aiPredictionStatus = "ready";
+          } else {
+            state.aiPredictionStatus = "unavailable";
+          }
+          // Update win probability from AI prediction
+          if (prediction) {
+            state.currentWinProbability = {
+              home: prediction.homeWin / 100,
+              away: prediction.awayWin / 100,
+            };
+          }
+          onUpdate(match.matchId, state);
+        }
+      }).catch((error) => {
+        console.error(`Failed to generate prediction for ${match.matchId}:`, error);
+        const state = matches.get(match.matchId);
+        if (state) {
+          state.aiPredictionStatus = "unavailable";
+        }
       });
     }
     
     matches.set(match.matchId, newState);
     
-    if (newEvents.length > 0 || 
-        (oldState && oldState.currentWinProbability.home !== newWinProbability.home)) {
+    // Only trigger update on events, not on probability changes
+    if (newEvents.length > 0) {
       onUpdate(match.matchId, newState);
     }
   }
@@ -215,6 +232,10 @@ export function getLiveMatches(): Match[] {
       matchId: state.matchId,
       homeTeam: state.homeTeam,
       awayTeam: state.awayTeam,
+      homeTeamId: state.homeTeamId,
+      awayTeamId: state.awayTeamId,
+      leagueId: state.leagueId,
+      season: state.season,
       competition: state.competition,
       homeScore: state.homeScore,
       awayScore: state.awayScore,

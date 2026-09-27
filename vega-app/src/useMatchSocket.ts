@@ -3,7 +3,7 @@ import { WS_URL } from "./config";
 import type { MatchState, CommentaryEntry } from "./types";
 
 // WebSocket hook for live match updates
-// Registers with matchId and receives match_update, commentary, and probability_update frames
+// Registers with matchId and receives match_update and commentary frames
 export function useMatchSocket(
   matchId: string,
   onMatchUpdate: (state: MatchState) => void,
@@ -37,9 +37,6 @@ export function useMatchSocket(
             onMatchUpdateRef.current(payload.state);
           } else if (payload.type === "commentary" && payload.commentary) {
             onCommentaryRef.current(payload.commentary);
-          } else if (payload.type === "probability_update" && payload.probability) {
-            // Handle probability updates if needed
-            console.log("Probability update:", payload.probability);
           }
         } catch (error) {
           // Ignore malformed frames and keep the connection alive.

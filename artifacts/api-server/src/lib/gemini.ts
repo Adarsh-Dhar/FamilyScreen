@@ -33,7 +33,7 @@ export async function generateCommentary(context: CommentaryContext): Promise<st
 
 Generate ONE concise, exciting commentary line (under 140 characters) that captures the moment. Be dramatic but factual. Respond with ONLY the commentary text, no JSON.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({
@@ -115,7 +115,7 @@ Answer this fan question: "${question}"
 
 Base your answer ONLY on the provided match information. Do not use outside knowledge. Keep your answer under 200 characters. Respond with ONLY the answer text, no JSON.`;
 
-    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
+    const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({

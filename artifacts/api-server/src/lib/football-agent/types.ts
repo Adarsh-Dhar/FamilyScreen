@@ -111,3 +111,12 @@ export interface AgentAnswer {
   budgetLimited: boolean;
   quotaRemainingToday: number;
 }
+
+export interface MatchPrediction {
+  homeWin: number; // 0-100
+  draw: number; // 0-100
+  awayWin: number; // 0-100
+  rationale: string;
+  confidence: "high" | "medium" | "low";
+  dataSources: string[];
+}

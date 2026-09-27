@@ -76,6 +76,7 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
 
   const homeProb = matchState.currentWinProbability.home * 100;
   const awayProb = matchState.currentWinProbability.away * 100;
+  const drawProb = matchState.aiPrediction ? matchState.aiPrediction.draw : 0;
 
   return (
     <View style={styles.container}>
@@ -109,25 +110,64 @@ export default function MatchScreen({ matchId, onBack }: MatchScreenProps) {
 
       {/* Win probability bar */}
       <View style={styles.probabilitySection}>
-        <Text style={styles.probabilityLabel}>Win Probability</Text>
-        <View style={styles.probabilityBar}>
-          <View
-            style={[
-              styles.probabilityFill,
-              { width: `${homeProb}%`, backgroundColor: "#0074B8" },
-            ]}
-          />
-          <View
-            style={[
-              styles.probabilityFill,
-              { width: `${awayProb}%`, backgroundColor: "#FF6200" },
-            ]}
-          />
-        </View>
-        <View style={styles.probabilityLabels}>
-          <Text style={styles.probabilityText}>{homeProb.toFixed(0)}%</Text>
-          <Text style={styles.probabilityText}>{awayProb.toFixed(0)}%</Text>
-        </View>
+        <Text style={styles.probabilityLabel}>AI Prediction</Text>
+        
+        {matchState.aiPredictionStatus === "loading" && (
+          <View style={styles.loadingContainer}>
+            <Text style={styles.loadingText}>Analyzing match data...</Text>
+          </View>
+        )}
+        
+        {matchState.aiPredictionStatus === "unavailable" && (
+          <View style={styles.unavailableContainer}>
+            <Text style={styles.unavailableText}>Prediction unavailable</Text>
+            <Text style={styles.unavailableSubtext}>Not enough data available</Text>
+          </View>
+        )}
+        
+        {matchState.aiPredictionStatus === "ready" && matchState.aiPrediction && (
+          <>
+            <View style={styles.probabilityBar}>
+              <View
+                style={[
+                  styles.probabilityFill,
+                  { width: `${homeProb}%`, backgroundColor: "#0074B8" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.probabilityFill,
+                  { width: `${drawProb}%`, backgroundColor: "#888888" },
+                ]}
+              />
+              <View
+                style={[
+                  styles.probabilityFill,
+                  { width: `${awayProb}%`, backgroundColor: "#FF6200" },
+                ]}
+              />
+            </View>
+            <View style={styles.probabilityLabels}>
+              <Text style={styles.probabilityText}>{homeProb.toFixed(0)}%</Text>
+              <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>
+              <Text style={styles.probabilityText}>{awayProb.toFixed(0)}%</Text>
+            </View>
+            <View style={styles.probabilityTeamLabels}>
+              <Text style={styles.teamLabel}>Home</Text>
+              <Text style={styles.teamLabel}>Draw</Text>
+              <Text style={styles.teamLabel}>Away</Text>
+            </View>
+            <View style={styles.rationaleContainer}>
+              <Text style={styles.rationaleText}>{matchState.aiPrediction.rationale}</Text>
+              <Text style={styles.confidenceText}>
+                Confidence: {matchState.aiPrediction.confidence.toUpperCase()}
+              </Text>
+              <Text style={styles.dataSourcesText}>
+                Based on: {matchState.aiPrediction.dataSources.join(", ")}
+              </Text>
+            </View>
+          </>
+        )}
       </View>
 
       {/* Commentary feed */}
@@ -231,6 +271,32 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     marginBottom: 10,
   },
+  loadingContainer: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  loadingText: {
+    color: "#888",
+    fontSize: 16,
+  },
+  unavailableContainer: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 12,
+    padding: 20,
+    alignItems: "center",
+  },
+  unavailableText: {
+    color: "#FF6200",
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  unavailableSubtext: {
+    color: "#666",
+    fontSize: 14,
+  },
   probabilityBar: {
     height: 30,
     flexDirection: "row",
@@ -250,6 +316,37 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     fontWeight: "600",
+  },
+  probabilityTeamLabels: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 4,
+  },
+  teamLabel: {
+    color: "#888",
+    fontSize: 12,
+  },
+  rationaleContainer: {
+    backgroundColor: "#1a1a2e",
+    borderRadius: 12,
+    padding: 16,
+    marginTop: 12,
+  },
+  rationaleText: {
+    color: colors.text,
+    fontSize: 14,
+    lineHeight: 20,
+    marginBottom: 8,
+  },
+  confidenceText: {
+    color: "#FF6200",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  dataSourcesText: {
+    color: "#666",
+    fontSize: 11,
   },
   commentarySection: {
     flex: 1,

@@ -19,10 +19,23 @@ export interface WinProbabilitySnapshot {
   timestamp: string;
 }
 
+export interface MatchPrediction {
+  homeWin: number;
+  draw: number;
+  awayWin: number;
+  rationale: string;
+  confidence: "high" | "medium" | "low";
+  dataSources: string[];
+}
+
 export interface MatchState {
   matchId: string;
   homeTeam: string;
   awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
   competition: string;
   homeScore: number;
   awayScore: number;
@@ -32,12 +45,18 @@ export interface MatchState {
   commentary: CommentaryEntry[];
   winProbabilityHistory: WinProbabilitySnapshot[];
   currentWinProbability: { home: number; away: number };
+  aiPrediction: MatchPrediction | null;
+  aiPredictionStatus: "loading" | "ready" | "unavailable";
 }
 
 export interface Match {
   matchId: string;
   homeTeam: string;
   awayTeam: string;
+  homeTeamId: number;
+  awayTeamId: number;
+  leagueId: number;
+  season: number;
   competition: string;
   homeScore: number;
   awayScore: number;
@@ -60,10 +79,4 @@ export interface CommentaryFrame {
   type: "commentary";
   matchId: string;
   commentary: CommentaryEntry;
-}
-
-export interface ProbabilityUpdateFrame {
-  type: "probability_update";
-  matchId: string;
-  probability: { home: number; away: number };
 }
