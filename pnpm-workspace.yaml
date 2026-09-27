@@ -31,8 +31,7 @@ minimumReleaseAgeExclude: []
 
 packages:
   - artifacts/*
-  - lib/*
-  - lib/integrations/*
+  - lib/api-zod
   - scripts
 
 catalog:

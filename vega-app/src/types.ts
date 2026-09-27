@@ -1,77 +1,69 @@
-// Mirrors lib/api-spec/openapi.yaml — keep these in sync with the backend schema.
+// Mirrors backend sports-data.ts — keep these in sync with the backend schema.
 
-export type ThresholdLevel = "none" | "mild" | "moderate" | "severe";
-
-export interface Thresholds {
-  violence: ThresholdLevel;
-  language: ThresholdLevel;
-  sexContent: ThresholdLevel;
-  substances: ThresholdLevel;
-  scaryContent: ThresholdLevel;
+export interface MatchEvent {
+  type: "goal" | "card" | "substitution" | "whistle";
+  team: "home" | "away";
+  minute: number;
+  description: string;
 }
 
-export interface ChildProfile {
+export interface CommentaryEntry {
   id: string;
-  name: string;
-  age: number;
-  thresholds: Thresholds;
+  timestamp: string;
+  text: string;
 }
 
-export interface ParentAccount {
-  id: string;
-  name: string;
-  children: ChildProfile[];
+export interface WinProbabilitySnapshot {
+  home: number;
+  away: number;
+  timestamp: string;
 }
 
-export interface PairSession {
-  code: string;
-  parentAccountId: string;
-  expiresAt: string;
+export interface MatchState {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  competition: string;
+  homeScore: number;
+  awayScore: number;
+  elapsedMinutes: number;
+  status: "live" | "finished" | "scheduled";
+  events: MatchEvent[];
+  commentary: CommentaryEntry[];
+  winProbabilityHistory: WinProbabilitySnapshot[];
+  currentWinProbability: { home: number; away: number };
 }
 
-export interface PairStatus {
-  confirmed: boolean;
-  parentAccount: ParentAccount | null;
+export interface Match {
+  matchId: string;
+  homeTeam: string;
+  awayTeam: string;
+  competition: string;
+  homeScore: number;
+  awayScore: number;
+  elapsedMinutes: number;
+  status: "live" | "finished" | "scheduled";
 }
 
-export interface ProfilesResponse {
-  parentAccount: ParentAccount;
+export interface MatchesResponse {
+  matches: Match[];
 }
 
-export interface Title {
-  id: string;
-  title: string;
-  year: number;
-  posterPath: string;
-  overview: string;
-  genres: string[];
-  service: string;
+// WebSocket frames
+export interface MatchUpdateFrame {
+  type: "match_update";
+  matchId: string;
+  state: MatchState;
 }
 
-export interface SearchResponse {
-  source: string;
-  results: Title[];
+export interface CommentaryFrame {
+  type: "commentary";
+  matchId: string;
+  commentary: CommentaryEntry;
 }
 
-export type ContentVerdict = "approved" | "flagged" | "blocked";
-
-export interface TitleSelectionResponse {
-  requestId: string;
-  verdict: ContentVerdict;
-  title: Title;
-  reason: string;
-  categoriesOfConcern: string[];
-  service: string;
-}
-
-export interface DecisionResponse {
-  ok: boolean;
-  decision: "approved" | "denied";
-}
-
-// Frame the TV receives over the websocket when a parent makes a decision.
-export interface ParentDecisionFrame {
-  type: "parent_decision";
-  requestId: string;
-  decision: "approved" | "denied";
+export interface ProbabilityUpdateFrame {
+  type: "probability_update";
+  matchId: string;
+  probability: { home: number; away: number };
 }

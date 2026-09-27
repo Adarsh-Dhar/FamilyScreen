@@ -1,16 +1,14 @@
 import React from 'react';
 import {
-  Image,
-  ImageSourcePropType,
   StyleSheet,
   Text,
   Pressable,
   View,
 } from 'react-native';
+import type { Match } from '../types';
 
-export interface TileProps {
-  label: string;
-  icon: ImageSourcePropType;
+export interface MatchTileProps {
+  match: Match;
   isFocused: boolean;
   onFocus: () => void;
   onBlur?: () => void;
@@ -19,16 +17,15 @@ export interface TileProps {
   accessibilityLabel?: string;
 }
 
-export const Tile = ({
-  label,
-  icon,
+export const MatchTile = ({
+  match,
   isFocused,
   onFocus,
   onBlur,
   onPress,
   testID,
   accessibilityLabel,
-}: TileProps) => {
+}: MatchTileProps) => {
   const handlePress = () => {
     if (onPress) {
       onPress();
@@ -56,16 +53,16 @@ export const Tile = ({
       testID={testID}
       accessibilityLabel={accessibilityLabel}
       accessibilityRole="button">
-      <View style={styles.topHalf}>
-        <Image
-          source={icon}
-          style={styles.icon}
-          resizeMode="contain"
-          accessible={false}
-        />
-      </View>
-      <View style={styles.bottomHalf}>
-        <Text style={styles.label}>{label}</Text>
+      <View style={styles.content}>
+        <Text style={styles.competition}>{match.competition}</Text>
+        <View style={styles.scoreRow}>
+          <Text style={styles.teamName}>{match.homeTeam}</Text>
+          <Text style={styles.score}>
+            {match.homeScore} - {match.awayScore}
+          </Text>
+          <Text style={styles.teamName}>{match.awayTeam}</Text>
+        </View>
+        <Text style={styles.time}>{match.elapsedMinutes}'</Text>
       </View>
     </Pressable>
   );
@@ -73,41 +70,49 @@ export const Tile = ({
 
 const styles = StyleSheet.create({
   tile: {
-    width: 160,
-    height: 160,
-    borderRadius: 20,
+    width: 280,
+    height: 120,
+    borderRadius: 12,
     overflow: 'hidden',
-    padding: 12,
+    padding: 16,
+    borderWidth: 2,
+    borderColor: 'transparent',
   },
-  topHalf: {
+  content: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  bottomHalf: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'space-between',
   },
   default: {
-    backgroundColor: '#0074B8',
+    backgroundColor: '#1a1a2e',
   },
   focused: {
-    backgroundColor: '#FF6200',
-    transform: [{scale: 1.1}],
-    opacity: 1,
+    backgroundColor: '#252540',
+    borderColor: '#FF6200',
+    transform: [{scale: 1.05}],
   },
-  icon: {
-    width: 40,
-    height: 40,
-    tintColor: '#FFFFFF',
+  competition: {
+    color: '#888',
+    fontSize: 12,
   },
-  label: {
+  scoreRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  teamName: {
     color: '#FFFFFF',
-    fontSize: 22,
+    fontSize: 16,
+    fontWeight: '600',
+    flex: 1,
+  },
+  score: {
+    color: '#FF6200',
+    fontSize: 24,
     fontWeight: 'bold',
-    textAlign: 'center',
-    lineHeight: 26,
-    includeFontPadding: false,
+    marginHorizontal: 12,
+  },
+  time: {
+    color: '#666',
+    fontSize: 14,
   },
 });

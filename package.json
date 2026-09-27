@@ -1,13 +1,10 @@
 {
-  "name": "fire-tv-discovery-demo",
+  "name": "fire-tv-sports-companion",
   "version": "1.0.0",
   "private": true,
   "scripts": {
     "clean": "rm -rf node_modules buildinfo.json dist build",
-    "dev": "cd apps/family-screen-mobile/web && npm install --no-audit --no-fund && npx vite --port ${PORT:-3000} --host",
-    "start": "pnpm run start:web",
-    "start:web": "cd apps/family-screen-mobile/web && npm run dev",
-    "web": "cd apps/family-screen-mobile/web && npm run dev",
+    "start": "pnpm --filter @workspace/api-server run start",
     "start:tv": "./start_tv.sh",
     "tv": "./start_tv.sh",
     "stop:all": "./stop_all.sh",

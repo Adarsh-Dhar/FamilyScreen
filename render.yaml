@@ -1,6 +1,6 @@
 services:
   - type: web
-    name: family-screen
+    name: sports-companion-api
     runtime: node
-    buildCommand: pnpm install && pnpm run build
-    startCommand: pnpm run start
+    buildCommand: pnpm install && pnpm --filter @workspace/api-server run build
+    startCommand: pnpm --filter @workspace/api-server run start

@@ -1,11 +1,11 @@
 #!/bin/bash
 
-# Fire TV Discovery Demo - Start All Apps
-# This script starts the TV app, web app, and API server
+# Fire TV Sports Companion - Start All Apps
+# This script starts the TV app and API server
 
 set -e
 
-echo "🚀 Fire TV Discovery Demo - Starting All Apps"
+echo "🚀 Fire TV Sports Companion - Starting All Apps"
 echo "=============================================="
 echo ""
 
@@ -16,17 +16,6 @@ check_port() {
         return 0
     else
         return 1
-    fi
-}
-
-# Function to get local IP address
-get_local_ip() {
-    if [[ "$OSTYPE" == "darwin"* ]]; then
-        # macOS
-        ipconfig getifaddr en0
-    else
-        # Linux
-        hostname -I | awk '{print $1}'
     fi
 }
 
@@ -56,19 +45,9 @@ else
     fi
 fi
 
-# Get local IP for web app configuration
-LOCAL_IP=$(get_local_ip)
-echo "🌐 Local IP address: $LOCAL_IP"
-
-# Update web app API URL
-echo "📝 Updating web app API URL..."
-sed -i.bak "s|const API_BASE_URL = 'http://.*:8080'|const API_BASE_URL = 'http://$LOCAL_IP:8080'|g" apps/family-screen-mobile/web/src/App.jsx
-rm -f apps/family-screen-mobile/web/src/App.jsx.bak
-
 # Try to start Vega virtual device
 echo "📺 Attempting to start Vega virtual device..."
 VEGA_PID=""
-USE_ANDROID_EMULATOR=false
 
 # Check if vega command is available
 if command -v vega &> /dev/null; then
@@ -88,7 +67,6 @@ if command -v vega &> /dev/null; then
         if vega device list 2>/dev/null | grep -q "vega"; then
             echo "✅ Vega virtual device started successfully"
             VEGA_PID="running"
-            USE_ANDROID_EMULATOR=false
             break
         fi
         sleep 1
@@ -98,18 +76,15 @@ if command -v vega &> /dev/null; then
     if [ -z "$VEGA_PID" ]; then
         echo "⚠️  Vega virtual device failed to start within timeout"
         echo "💡 Check logs at /tmp/vega-start.log for details"
-        echo "💡 Falling back to web app only"
-        USE_ANDROID_EMULATOR=true
         kill $VEGA_START_PID > /dev/null 2>&1 || true
     fi
 else
     echo "⚠️  Vega command not found, skipping Vega virtual device"
     echo "💡 To use Vega virtual device, install the Vega SDK"
-    USE_ANDROID_EMULATOR=true
 fi
 
-# Build Vega TV app (optional, for future compatibility)
-echo "📦 Building Vega TV app (for future compatibility)..."
+# Build Vega TV app
+echo "📦 Building Vega TV app..."
 cd vega-app
 pnpm run build:debug
 cd ..
@@ -136,19 +111,8 @@ if [ ! -z "$VEGA_PID" ]; then
 else
     echo "⚠️  Vega TV app not launched (virtual device not available)"
     echo "💡 Vega TV app built successfully for future deployment"
-    echo "💡 You can test the web app with the API server directly"
     TV_PID=""
 fi
-
-# Start web app
-echo "🌐 Starting web app..."
-cd apps/family-screen-mobile/web
-npm run dev &
-WEB_PID=$!
-cd ../../..
-
-# Wait a moment for web app to start
-sleep 3
 
 echo ""
 echo "🎉 Development environment started successfully!"
@@ -160,17 +124,14 @@ if [ ! -z "$VEGA_PID" ]; then
 else
     echo "   • Vega TV App: Built and ready (virtual device not started)"
 fi
-echo "   • Web App: http://localhost:5173"
 echo ""
 echo "🎯 Development Mode:"
 if [ ! -z "$VEGA_PID" ]; then
     echo "   • Vega TV app is running on virtual device"
-    echo "   • TV pairing is available in this mode"
 else
     echo "   • Vega TV app is built but not running"
-    echo "   • TV pairing is not available in this mode"
 fi
-echo "   • Web app is running and can connect to the API server"
+echo "   • API server is running and ready for requests"
 echo ""
 echo "🛑 To stop all apps, press Ctrl+C or run: pnpm run stop:all"
 echo ""
@@ -186,13 +147,8 @@ cleanup() {
     fi
     
     # Stop virtual device
-    kepler virtual-device stop > /dev/null 2>&1 || true
+    vega virtual-device stop > /dev/null 2>&1 || true
     echo "✅ Virtual device stopped"
-    
-    if [ ! -z "$WEB_PID" ]; then
-        kill $WEB_PID 2>/dev/null || true
-        echo "✅ Web app stopped"
-    fi
     
     if [ ! -z "$API_PID" ]; then
         kill $API_PID 2>/dev/null || true
