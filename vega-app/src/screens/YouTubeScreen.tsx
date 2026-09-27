@@ -1,5 +1,6 @@
 import React, { useRef } from "react";
 import { View, StyleSheet } from "react-native";
+// eslint-disable-next-line @amazon-devices/kepler/sdl-package-version-check-imports
 import { WebView } from "@amazon-devices/webview";
 
 interface Props {
@@ -14,7 +15,6 @@ export default function YouTubeScreen({ onExit }: Props) {
       <WebView
         ref={webRef}
         style={styles.webview}
-        hasTVPreferredFocus={true}
         allowSystemKeyEvents={true}
         javaScriptEnabled={true}
         source={{ uri: "https://www.youtube.com/tv" }}
@@ -23,13 +23,6 @@ export default function YouTubeScreen({ onExit }: Props) {
         onMessage={(event) => {
           if (event.nativeEvent.data === "goBack") onExit();
         }}
-        injectedJavaScript={`
-          document.addEventListener('keydown', function(e) {
-            if (e.keyCode === 27) { // ESC/Back key
-              window.ReactNativeWebView.postMessage('goBack');
-            }
-          });
-        `}
       />
     </View>
   );

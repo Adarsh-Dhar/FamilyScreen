@@ -70,22 +70,50 @@ export PATH=/Users/adarsh/vega/bin:$PATH
 # Check if vega command is available
 if command -v vega &> /dev/null; then
     echo "🔧 Vega command found, attempting to start virtual device..."
-    
-    # Clean up any stale instances first
-    vega virtual-device stop > /dev/null 2>&1 || true
-    rm -rf /Users/adarsh/vega/vvd/instances/* > /dev/null 2>&1 || true
-    
+
+    # Resolve the actual active SDK path/version instead of hardcoding one,
+    # so this keeps working after `vega sdk install` picks up a new build.
+    SDK_ROOT="$(dirname "$(dirname "$(readlink -f "$(command -v vega)" 2>/dev/null || command -v vega)")")/sdk"
+    ACTIVE_SDK_VERSION=$(vega --version 2>/dev/null | grep "Active SDK Version" | awk '{print $NF}')
+    VVD_INSTANCES_DIR="$SDK_ROOT/vega-sdk/main/${ACTIVE_SDK_VERSION}/vvd/instances"
+
+    # Hard-kill any leftover virtual device / helper processes and clear
+    # instance state. `vega virtual-device stop` alone is not reliable --
+    # it can report "not running" while a zombie process still holds the
+    # emulator ports, causing the next instance to silently start on a
+    # different port (5556 instead of 5554) that nothing else expects.
+    pkill -9 -f "vega-virtual-device" > /dev/null 2>&1 || true
+    pkill -9 -f "netsimd" > /dev/null 2>&1 || true
+    pkill -9 -f "crashpad_handler" > /dev/null 2>&1 || true
+    if [ -n "$ACTIVE_SDK_VERSION" ] && [ -d "$VVD_INSTANCES_DIR" ]; then
+        rm -rf "${VVD_INSTANCES_DIR:?}"/* > /dev/null 2>&1 || true
+    fi
+
+    # Restart adb's server clean too, so it doesn't hold stale state from
+    # a previous run.
+    adb kill-server > /dev/null 2>&1 || true
+    adb start-server > /dev/null 2>&1 || true
+
     # Try to start the virtual device in foreground to see errors
     echo "⏳ Starting virtual device (this may take 1-2 minutes)..."
-    vega virtual-device start > /tmp/vega-start.log 2>&1 &
+    vega virtual-device start --timeout 180 > /tmp/vega-start.log 2>&1 &
     VEGA_START_PID=$!
-    
-    # Wait for virtual device to start
-    for i in {1..90}; do
-        if vega device list 2>/dev/null | grep -q "vega"; then
-            echo "✅ Vega virtual device started successfully"
-            TV_DEVICE_PID="vega"
-            break
+
+    # Wait for virtual device to boot AND actually confirm shell/adb
+    # access works -- do NOT use `vega device list` here, it can hang
+    # indefinitely on this setup and silently break this whole loop.
+    DEVICE_SERIAL=""
+    for i in {1..180}; do
+        if grep -q "Virtual device ready." /tmp/vega-start.log 2>/dev/null; then
+            # Find the emulator serial that's actually online (status
+            # "device", not "offline") -- there can be more than one
+            # entry if a previous instance's ports weren't freed.
+            DEVICE_SERIAL=$(adb devices -l 2>/dev/null | awk '/^emulator-.*[[:space:]]device[[:space:]]/ {print $1; exit}')
+            if [ -n "$DEVICE_SERIAL" ]; then
+                echo "✅ Vega virtual device started successfully ($DEVICE_SERIAL)"
+                TV_DEVICE_PID="vega"
+                break
+            fi
         fi
         # Check if the process is still running
         if ! kill -0 $VEGA_START_PID 2>/dev/null; then
@@ -94,24 +122,21 @@ if command -v vega &> /dev/null; then
         fi
         sleep 1
     done
-    
+
     # Check if virtual device started successfully
     if [ -z "$TV_DEVICE_PID" ]; then
         echo "⚠️  Vega virtual device failed to start within timeout"
         echo "💡 Check logs at /tmp/vega-start.log for details"
-        echo "💡 Check Vega device logs at: /Users/adarsh/vega/vvd/virtual_device.log"
+        echo "💡 Check Vega device logs at: $SDK_ROOT/vega-sdk/main/${ACTIVE_SDK_VERSION}/vvd/virtual_device.log"
         kill $VEGA_START_PID > /dev/null 2>&1 || true
-        # Kill any remaining Vega processes
-        pkill -f "vega" > /dev/null 2>&1 || true
-        echo "💡 Vega virtual device has compatibility issues with your macOS version (26.3)"
-        echo "� The Vega SDK requires macOS 12-15 for full compatibility"
+        pkill -9 -f "vega-virtual-device" > /dev/null 2>&1 || true
         echo "❌ TV app cannot run without Vega virtual device"
         echo "💡 For now, please use the web app: pnpm run web"
         exit 1
     fi
 else
     echo "❌ Vega command not found"
-    echo "� To use Vega virtual device, install the Vega SDK"
+    echo "💡 To use Vega virtual device, install the Vega SDK"
     echo "❌ TV app cannot run without Vega virtual device"
     echo "💡 For now, please use the web app: pnpm run web"
     exit 1
@@ -129,16 +154,31 @@ if [ "$TV_DEVICE_PID" = "vega" ]; then
     echo "🚀 Launching Vega TV app..."
     cd vega-app
     
-    # Find the built vpkg file
-    VPKG_FILE=$(find build/private/kepler -name "*.vpkg" | head -n 1)
-    
-    if [ -n "$VPKG_FILE" ]; then
+    # Find the built vpkg file -- specifically the aarch64 Debug one, since
+    # that's what the Apple Silicon virtual device actually runs. A plain
+    # `find | head -1` can grab the armv7 or x86_64 build instead,
+    # depending on filesystem ordering.
+    VPKG_FILE=$(find build/private/kepler -path "*aarch64*Debug*" -name "*.vpkg" | head -n 1)
+    if [ -z "$VPKG_FILE" ]; then
+        VPKG_FILE=$(find build/private/kepler -path "*aarch64*" -name "*.vpkg" | head -n 1)
+    fi
+    if [ -z "$VPKG_FILE" ]; then
+        VPKG_FILE=$(find build/private/kepler -name "*.vpkg" | head -n 1)
+    fi
+
+    if [ -n "$VPKG_FILE" ] && [ -n "$DEVICE_SERIAL" ]; then
         echo "📦 Using package: $VPKG_FILE"
-        vega run-app "$VPKG_FILE" > /dev/null 2>&1 &
-        TV_PID=$!
+        echo "📺 Targeting device: $DEVICE_SERIAL"
+        # Pass the confirmed-online serial explicitly. Without --deviceId,
+        # run-app can resolve to a stale/offline instance left over from
+        # a previous session instead of the one we just verified is alive.
+        # Also specify the app ID to launch the interactive component
+        vega run-app "$VPKG_FILE" com.familyscreen.vega.main --deviceId "$DEVICE_SERIAL"
         echo "✅ Vega TV app launched"
+        cd ..
+        TV_PID=""
     else
-        echo "⚠️  No vpkg file found, app not launched"
+        echo "⚠️  No vpkg file or no confirmed device serial, app not launched"
         TV_PID=""
     fi
     
@@ -179,8 +219,12 @@ cleanup() {
         if command -v vega &> /dev/null; then
             vega virtual-device stop > /dev/null 2>&1 || true
             sleep 2
-            # Force kill any remaining Vega processes
-            pkill -f "vega" > /dev/null 2>&1 || true
+            # Force kill any remaining Vega/emulator processes by name,
+            # rather than a broad `pkill -f vega` which could match
+            # unrelated processes with "vega" in their path.
+            pkill -9 -f "vega-virtual-device" > /dev/null 2>&1 || true
+            pkill -9 -f "netsimd" > /dev/null 2>&1 || true
+            pkill -9 -f "crashpad_handler" > /dev/null 2>&1 || true
             echo "✅ Vega virtual device stopped"
         else
             echo "⚠️  Vega command not found"

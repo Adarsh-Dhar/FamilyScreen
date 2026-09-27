@@ -1,5 +1,5 @@
 {
   "//": "The declared app name must follow this pattern to be KRL-compatible",
-  "name": "com.familyscreen.vega.main",
-  "displayName": "familyscreenvega"
+  "name": "com.familyscreen.vega",
+  "displayName": "Family Screen TV App"
 }

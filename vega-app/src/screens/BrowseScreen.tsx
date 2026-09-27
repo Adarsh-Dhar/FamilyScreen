@@ -112,7 +112,6 @@ export default function BrowseScreen({ account, parentAccountId, onUnpair, onSel
             console.log("YouTube tile pressed");
             onSelectYouTube();
           }}
-          hasTVPreferredFocus={true}
         />
       </View>
 
@@ -125,7 +124,7 @@ export default function BrowseScreen({ account, parentAccountId, onUnpair, onSel
         autoCapitalize="none"
       />
 
-      {loading && <ActivityIndicator color={colors.secondary} style={{ marginTop: 24 }} />}
+      {loading && <ActivityIndicator color={colors.secondary} style={styles.loadingIndicator} />}
       {!!error && <Text style={styles.error}>{error}</Text>}
       {!loading && query.trim().length > 1 && !error && !results.length && (
         <Text style={styles.subtitle}>No stories matched that.</Text>
@@ -135,7 +134,12 @@ export default function BrowseScreen({ account, parentAccountId, onUnpair, onSel
         data={results}
         keyExtractor={(item) => item.id}
         numColumns={4}
-        contentContainerStyle={{ paddingTop: 16, paddingBottom: 48 }}
+        contentContainerStyle={styles.flatListContent}
+        initialNumToRender={8}
+        windowSize={10}
+        removeClippedSubviews={true}
+        maxToRenderPerBatch={4}
+        updateCellsBatchingPeriod={50}
         renderItem={({ item }) => (
           <TouchableOpacity style={styles.card} onPress={() => setActiveTitle(item)}>
             <View style={styles.poster}>
@@ -198,6 +202,8 @@ const styles = StyleSheet.create({
     fontSize: 15,
   },
   error: { color: colors.destructive, marginTop: 12 },
+  loadingIndicator: { marginTop: 24 },
+  flatListContent: { paddingTop: 16, paddingBottom: 48 },
   card: { width: "23%", marginRight: "2%", marginBottom: 20 },
   poster: {
     aspectRatio: 2 / 3,

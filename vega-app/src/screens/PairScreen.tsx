@@ -20,7 +20,7 @@ interface Props {
 // Simplified TV pairing flow:
 // 1. Automatically create a pairing code using default account ID
 // 2. Display the code and poll until parent confirms it on their device
-export default function PairScreen({ accountId, setAccountId, onPaired }: Props) {
+export default function PairScreen({ accountId: _accountId, setAccountId: _setAccountId, onPaired }: Props) {
   const [session, setSession] = useState<PairSession | null>(null);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState("");
@@ -90,6 +90,7 @@ export default function PairScreen({ accountId, setAccountId, onPaired }: Props)
 
   useEffect(() => {
     testNetwork();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {
@@ -120,7 +121,7 @@ export default function PairScreen({ accountId, setAccountId, onPaired }: Props)
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Setting up pairing...</Text>
-        <ActivityIndicator color={colors.secondary} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.secondary} style={styles.activityIndicator} />
         {testStatus && <Text style={styles.subtitle}>{testStatus}</Text>}
       </View>
     );
@@ -132,7 +133,7 @@ export default function PairScreen({ accountId, setAccountId, onPaired }: Props)
         <Text style={styles.eyebrow}>TV PAIRING CODE</Text>
         <Text style={styles.code}>{session.code}</Text>
         <Text style={styles.hint}>Enter this code on the parent app to connect.</Text>
-        <ActivityIndicator color={colors.secondary} style={{ marginTop: 24 }} />
+        <ActivityIndicator color={colors.secondary} style={styles.activityIndicator} />
         <TouchableOpacity style={styles.linkButton} onPress={handleRestart}>
           <Text style={styles.linkButtonText}>Generate new code</Text>
         </TouchableOpacity>
@@ -203,4 +204,5 @@ const styles = StyleSheet.create({
   },
   primaryButtonText: { color: colors.primaryText, fontWeight: "700", fontSize: 16 },
   error: { color: colors.destructive, marginTop: 12, fontSize: 13 },
+  activityIndicator: { marginTop: 24 },
 });

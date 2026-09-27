@@ -91,7 +91,6 @@ export default function TitleDetailModal({ title, child, parentAccountId, onClos
               style={styles.primaryButton}
               onPress={requestPlayback}
               disabled={requesting}
-              hasTVPreferredFocus
             >
               {requesting ? (
                 <ActivityIndicator color={colors.primaryText} />

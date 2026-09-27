@@ -7,7 +7,11 @@ import type {
   TitleSelectionResponse,
 } from "./types";
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function request<T>(path: string, init?: {
+  method?: string;
+  headers?: Record<string, string>;
+  body?: string;
+}): Promise<T> {
   const res = await fetch(`${API_BASE_URL}/api${path}`, {
     ...init,
     headers: { "Content-Type": "application/json", ...(init?.headers || {}) },

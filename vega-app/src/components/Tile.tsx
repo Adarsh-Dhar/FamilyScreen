@@ -17,7 +17,6 @@ export interface TileProps {
   onPress?: () => void;
   testID?: string;
   accessibilityLabel?: string;
-  hasTVPreferredFocus?: boolean;
 }
 
 export const Tile = ({
@@ -29,7 +28,6 @@ export const Tile = ({
   onPress,
   testID,
   accessibilityLabel,
-  hasTVPreferredFocus,
 }: TileProps) => {
   const handlePress = () => {
     if (onPress) {
@@ -37,16 +35,27 @@ export const Tile = ({
     }
   };
 
+  const handleFocus = () => {
+    if (onFocus) {
+      onFocus();
+    }
+  };
+
+  const handleBlur = () => {
+    if (onBlur) {
+      onBlur();
+    }
+  };
+
   return (
     <Pressable
       style={[styles.tile, isFocused ? styles.focused : styles.default]}
-      onFocus={onFocus}
-      onBlur={onBlur}
-      onPress={onPress ? handlePress : undefined}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
+      onPress={handlePress}
       testID={testID}
       accessibilityLabel={accessibilityLabel}
-      accessibilityRole="button"
-      hasTVPreferredFocus={hasTVPreferredFocus}>
+      accessibilityRole="button">
       <View style={styles.topHalf}>
         <Image
           source={icon}
