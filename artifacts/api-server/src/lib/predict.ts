@@ -1,6 +1,8 @@
 import { guardedCall } from "./sports/core/guarded-call";
 import { getSportEndpoint } from "./sports/endpoints";
 import type { AgentCallLog } from "./football-agent/types";
+import type { SportId } from "./sports/registry";
+import { getSportDefinition } from "./sports/registry";
 
 export interface MatchPrediction {
   homeWin: number; // 0-100
@@ -25,7 +27,7 @@ export interface PredictionRequest {
  * Subagent for generating AI-powered match predictions. Calls multiple API-Football endpoints
  * in parallel (team statistics, head-to-head, injuries, predictions) and uses Gemini to synthesize
  * a three-way probability (home/draw/away) with grounding-strict JSON output.
- * 
+ *
  * Uses 5 API calls per prediction, so should only be called once per fixture (on first sight),
  * not on every poll tick.
  */
@@ -33,18 +35,41 @@ export async function generateMatchPrediction(
   request: PredictionRequest,
   log?: AgentCallLog[]
 ): Promise<MatchPrediction | undefined> {
+  return generateGamePrediction("football", request, log);
+}
+
+/**
+ * Generic prediction function for any sport. Calls sport-specific team statistics
+ * and head-to-head endpoints, then uses Gemini to synthesize a probability split.
+ * For sports that support draws (football, hockey, handball, rugby, AFL), returns
+ * a three-way split (home/draw/away). For others (basketball, NBA, NFL, baseball, volleyball),
+ * returns a two-way split with draw fixed at 0.
+ *
+ * Uses 3 API calls per prediction, so should only be called once per fixture (on first sight),
+ * not on every poll tick.
+ */
+export async function generateGamePrediction(
+  sportId: SportId,
+  request: PredictionRequest,
+  log?: AgentCallLog[]
+): Promise<MatchPrediction | undefined> {
   const { fixtureId, homeTeamId, awayTeamId, leagueId, season, homeTeamName, awayTeamName } = request;
+
+  const sportDef = getSportDefinition(sportId);
+  const supportsDraw = sportDef.supportsDraw;
 
   // Cap season at 2024 for free API plan compatibility
   const cappedSeason = Math.min(season, 2024);
 
   // Call multiple endpoints in parallel for comprehensive data
   // Use Promise.allSettled to handle individual failures gracefully
-  // Reduced to 3 calls to avoid rate limiting while still providing good data
+  // Different sports use different endpoint keys for head-to-head
+  const h2hEndpointKey = sportId === "football" ? "fixtures.headtohead" : "games.h2h";
+
   const [homeStats, awayStats, h2h] = await Promise.allSettled([
-    guardedCall("football", "teams.statistics", getSportEndpoint("football", "teams.statistics").path, getSportEndpoint("football", "teams.statistics"), { league: leagueId, season: cappedSeason, team: homeTeamId }, { log }),
-    guardedCall("football", "teams.statistics", getSportEndpoint("football", "teams.statistics").path, getSportEndpoint("football", "teams.statistics"), { league: leagueId, season: cappedSeason, team: awayTeamId }, { log }),
-    guardedCall("football", "fixtures.headtohead", getSportEndpoint("football", "fixtures.headtohead").path, getSportEndpoint("football", "fixtures.headtohead"), { h2h: `${homeTeamId}-${awayTeamId}` }, { log }),
+    guardedCall(sportId, "teams.statistics", getSportEndpoint(sportId, "teams.statistics").path, getSportEndpoint(sportId, "teams.statistics"), { league: leagueId, season: cappedSeason, team: homeTeamId }, { log }),
+    guardedCall(sportId, "teams.statistics", getSportEndpoint(sportId, "teams.statistics").path, getSportEndpoint(sportId, "teams.statistics"), { league: leagueId, season: cappedSeason, team: awayTeamId }, { log }),
+    guardedCall(sportId, h2hEndpointKey, getSportEndpoint(sportId, h2hEndpointKey).path, getSportEndpoint(sportId, h2hEndpointKey), { h2h: `${homeTeamId}-${awayTeamId}` }, { log }),
   ]);
 
   // Collect available data sources for transparency
@@ -60,6 +85,9 @@ export async function generateMatchPrediction(
 
   // Assemble the data for Gemini
   const predictionData = {
+    sportId,
+    sportName: sportDef.label,
+    supportsDraw,
     fixture: {
       id: fixtureId,
       homeTeam: homeTeamName,
@@ -79,6 +107,16 @@ export async function generateMatchPrediction(
     return undefined;
   }
 
+  // For sports that don't support draws, force draw to 0 and redistribute to home/away
+  if (!supportsDraw) {
+    const totalWithoutDraw = aiPrediction.homeWin + aiPrediction.awayWin;
+    if (totalWithoutDraw > 0) {
+      aiPrediction.homeWin = Math.round((aiPrediction.homeWin / totalWithoutDraw) * 100);
+      aiPrediction.awayWin = 100 - aiPrediction.homeWin;
+      aiPrediction.draw = 0;
+    }
+  }
+
   return {
     ...aiPrediction,
     dataSources,
@@ -88,14 +126,19 @@ export async function generateMatchPrediction(
 async function callGeminiForPrediction(data: any): Promise<Omit<MatchPrediction, "dataSources"> | undefined> {
   const apiKey = process.env["GEMINI_API_KEY"];
   if (!apiKey) {
-    console.warn("GEMINI_API_KEY not set, skipping AI prediction");
+    // Silently skip prediction if API key is not set
     return undefined;
   }
 
   try {
-    const prompt = `You are a football prediction expert. Analyze the following match data and predict the outcome as three probabilities: home win, draw, away win.
+    const drawInstruction = data.supportsDraw
+      ? "Provide a three-way probability split: home win, draw, away win. Draws are possible in this sport."
+      : "Provide a two-way probability split: home win, away win. Draws are not realistic in this sport, so set draw to 0.";
+
+    const prompt = `You are a ${data.sportName} prediction expert. Analyze the following match data and predict the outcome.
 
 Match: ${data.fixture.homeTeam} vs ${data.fixture.awayTeam}
+Sport: ${data.sportName}
 League ID: ${data.fixture.leagueId}, Season: ${data.fixture.season}
 
 Available data sources: ${data.availableDataSources.join(", ")}
@@ -105,7 +148,8 @@ ${data.awayStats ? `Away team stats: ${JSON.stringify(data.awayStats).slice(0, 2
 ${data.headToHead ? `Head-to-head: ${JSON.stringify(data.headToHead).slice(0, 2000)}` : "Head-to-head: not available"}
 
 IMPORTANT RULES:
-1. Return ONLY valid JSON in this exact format:
+1. ${drawInstruction}
+2. Return ONLY valid JSON in this exact format:
 {
   "homeWin": number between 0-100,
   "draw": number between 0-100,
@@ -113,10 +157,10 @@ IMPORTANT RULES:
   "rationale": "brief explanation (2-3 sentences)",
   "confidence": "high" or "medium" or "low"
 }
-2. The three probabilities MUST sum to exactly 100
-3. If data is missing, mention it in the rationale but still provide your best estimate
-4. Be realistic - don't give extreme probabilities without strong evidence
-5. Use only the provided data - do not add outside knowledge about teams`;
+3. The three probabilities MUST sum to exactly 100
+4. If data is missing, mention it in the rationale but still provide your best estimate
+5. Be realistic - don't give extreme probabilities without strong evidence
+6. Use only the provided data - do not add outside knowledge about teams`;
 
     const response = await fetch(
       `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${encodeURIComponent(apiKey)}`,
@@ -135,7 +179,7 @@ IMPORTANT RULES:
     );
 
     if (!response.ok) {
-      console.error("Gemini API error:", response.status, response.statusText);
+      // Silently handle Gemini errors to avoid log spam
       return undefined;
     }
 
@@ -145,7 +189,6 @@ IMPORTANT RULES:
     const text = payload.candidates?.[0]?.content?.parts?.[0]?.text?.trim();
 
     if (!text) {
-      console.error("No response from Gemini");
       return undefined;
     }
 
@@ -159,7 +202,6 @@ IMPORTANT RULES:
       typeof prediction.rationale !== "string" ||
       !["high", "medium", "low"].includes(prediction.confidence)
     ) {
-      console.error("Invalid prediction format from Gemini:", prediction);
       return undefined;
     }
 
@@ -175,7 +217,7 @@ IMPORTANT RULES:
 
     return prediction;
   } catch (error) {
-    console.error("Error calling Gemini for prediction:", error);
+    // Silently handle errors
     return undefined;
   }
 }

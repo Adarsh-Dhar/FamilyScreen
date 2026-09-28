@@ -1,8 +1,8 @@
 {
-  "day": "2026-09-27",
-  "totalSpent": 1,
+  "day": "2026-09-28",
+  "totalSpent": 12,
   "perEndpoint": {
-    "games.live": 1
+    "games.live": 12
   },
   "dailyLimit": 100
 }

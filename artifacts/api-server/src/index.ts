@@ -4,7 +4,7 @@ import { logger } from "./lib/logger";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { addConnectionLegacy as addConnection, removeConnectionLegacy as removeConnection, broadcastLegacy as broadcast } from "./lib/sports-socket";
-import { pollLiveMatches, pollLiveGames, type MatchState, type GameState, addCommentaryToMatch as addCommentary } from "./lib/sports-data";
+import { pollLiveMatches, pollLiveGames, type MatchState, type GameState, addCommentaryToMatch, addCommentary } from "./lib/sports-data";
 import { generateCommentary, type CommentaryContext } from "./lib/gemini";
 import { getAllSports, type SportId } from "./lib/sports/registry";
 
@@ -20,14 +20,14 @@ const webSocketServer = new WebSocketServer({ server, path: "/ws" });
 
 webSocketServer.on("connection", (socket) => {
   let gameId = "";
-  let sportId = "football" as const;
+  let sportId: SportId = "football";
   socket.on("message", (message) => {
     try {
       const payload = JSON.parse(message.toString()) as { type?: string; gameId?: string; matchId?: string; sportId?: string };
       if (payload.type === "register" && (payload.gameId || payload.matchId)) {
         gameId = payload.gameId || payload.matchId || "";
-        sportId = (payload.sportId as string) || "football";
-        addConnection(sportId as any, gameId, socket);
+        sportId = (payload.sportId as SportId) || "football";
+        addConnection(sportId, gameId, socket);
         socket.send(JSON.stringify({ type: "registered", gameId, sportId }));
       }
     } catch {
@@ -35,16 +35,16 @@ webSocketServer.on("connection", (socket) => {
     }
   });
   socket.on("close", () => {
-    if (gameId) removeConnection(sportId as any, gameId, socket);
+    if (gameId) removeConnection(sportId, gameId, socket);
   });
 });
 
 async function handleMatchUpdate(matchId: string, state: MatchState) {
   broadcast(matchId, { type: "match_update", matchId, state });
-  
+
   const recentEvents = state.events.slice(-3).map(e => e.description);
   const scoreChanged = state.events.length > 0 && state.events[state.events.length - 1].type === "goal";
-  
+
   if (scoreChanged) {
     const context: CommentaryContext = {
       homeTeam: state.homeTeam,
@@ -55,21 +55,21 @@ async function handleMatchUpdate(matchId: string, state: MatchState) {
       recentEvents,
       scoreChange: scoreChanged,
     };
-    
+
     const commentary = await generateCommentary(context);
-    addCommentary("football", matchId, commentary);
+    addCommentaryToMatch(matchId, commentary);
     broadcast(matchId, { type: "commentary", matchId, commentary });
   }
 }
 
 async function handleGameUpdate(gameId: string, state: GameState) {
   broadcast(gameId, { type: "game_update", gameId, state });
-  
+
   // Commentary generation only for football
   if (state.sportId === "football") {
     const recentEvents = state.events.slice(-3).map(e => e.description);
     const scoreChanged = state.events.length > 0 && state.events[state.events.length - 1].type === "goal";
-    
+
     if (scoreChanged) {
       const context: CommentaryContext = {
         homeTeam: state.homeTeam,
@@ -80,7 +80,7 @@ async function handleGameUpdate(gameId: string, state: GameState) {
         recentEvents,
         scoreChange: scoreChanged,
       };
-      
+
       const commentary = await generateCommentary(context);
       addCommentary(state.sportId, gameId, commentary);
       broadcast(gameId, { type: "commentary", gameId, commentary });
@@ -92,15 +92,21 @@ const POLL_INTERVAL_MS = 60000;
 
 async function startPolling() {
   logger.info("Starting live match polling");
-  
+
   // Poll for all sports
   const allSports = getAllSports();
-  
-  // Start football polling (legacy)
-  await pollLiveMatches(handleMatchUpdate);
-  
-  // Start multi-sport polling for all sports
-  for (const sport of allSports) {
+  const sportsWithLiveGames = allSports.filter(sport => sport.hasLiveGames);
+
+  // Start football polling (legacy) - wrap in try-catch to avoid blocking other sports
+  try {
+    await pollLiveMatches(handleMatchUpdate);
+    logger.info("Started polling for Football (legacy)");
+  } catch (error) {
+    logger.error({ error }, "Failed to start polling for Football (legacy)");
+  }
+
+  // Start multi-sport polling only for sports that have live games
+  for (const sport of sportsWithLiveGames) {
     try {
       await pollLiveGames(sport.id, handleGameUpdate);
       logger.info(`Started polling for ${sport.label}`);
@@ -108,14 +114,18 @@ async function startPolling() {
       logger.error({ sport: sport.id, error }, `Failed to start polling for ${sport.label}`);
     }
   }
-  
+
   // Set up interval polling for all sports
   setInterval(async () => {
     // Legacy football polling
-    await pollLiveMatches(handleMatchUpdate);
-    
-    // Multi-sport polling
-    for (const sport of allSports) {
+    try {
+      await pollLiveMatches(handleMatchUpdate);
+    } catch (error) {
+      logger.error({ error }, "Failed to poll Football (legacy)");
+    }
+
+    // Multi-sport polling only for sports that have live games
+    for (const sport of sportsWithLiveGames) {
       try {
         await pollLiveGames(sport.id, handleGameUpdate);
       } catch (error) {

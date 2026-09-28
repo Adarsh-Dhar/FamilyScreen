@@ -1,8 +1,18 @@
 import { guardedCall as multiSportGuardedCall } from "./sports/core/guarded-call";
 import { getSportEndpoint } from "./sports/endpoints";
 import type { SportId } from "./sports/registry";
-import { generateMatchPrediction, type MatchPrediction } from "./predict";
+import { generateMatchPrediction, generateGamePrediction, type MatchPrediction } from "./predict";
+import { getSportDefinition } from "./sports/registry";
 import { guardedCall } from "./football-agent/guarded-call";
+
+// Football-specific types for backward compatibility
+type LiveFixtureItem = {
+  fixture: { id: number };
+  teams: { home: { id: number; name: string }; away: { id: number; name: string } };
+  league: { id: number; name: string; season: number };
+  goals: { home: number | null; away: number | null };
+  status?: { elapsed: number | null; short: string };
+};
 
 // Generic sport types
 export type GameEvent = {
@@ -73,115 +83,363 @@ type LiveGameItem = {
   id: number;
   teams: { home: { id: number; name: string }; away: { id: number; name: string } };
   league: { id: number; name: string; season: number };
-  scores: { home: number | null | { total: number }; away: number | null | { total: number } };
+  scores: { home: number | null | Record<string, number | null>; away: number | null | Record<string, number | null> };
   status?: { elapsed: number | null; short: string };
 };
+
+/**
+ * Normalizes a raw score value from any api-sports API into a plain number.
+ *
+ * Different sports return scores in different shapes:
+ *  - football: plain number (or null pre-kickoff)
+ *  - baseball: { total }
+ *  - basketball/NBA/NFL/handball/etc: { quarter_1, quarter_2, quarter_3, quarter_4, over_time, total }
+ *    (period keys vary by sport, e.g. sets/halves, but `total` is always present when scoring has started)
+ *
+ * Every place we pull a score out of a raw API response MUST go through this — the GameState/
+ * GameSummary types (and every screen in vega-app) assume `homeScore`/`awayScore` are numbers,
+ * so leaking an unnormalized object out of here crashes the UI with "Objects are not valid as a
+ * React child" the moment a non-football, non-baseball sport reports a score.
+ */
+function normalizeScore(raw: number | null | Record<string, number | null> | undefined): number {
+  if (typeof raw === "number") return raw;
+  if (raw && typeof raw === "object") {
+    if (typeof raw.total === "number") return raw.total;
+    // No `total` field (some period-based sports omit it until the game ends) — sum whatever
+    // numeric period values are present rather than surfacing the raw object.
+    return Object.values(raw).reduce<number>((sum, v) => sum + (typeof v === "number" ? v : 0), 0);
+  }
+  return 0;
+}
+
+/**
+ * Fetch MMA fights - individual sport with fighters instead of teams
+ */
+async function fetchMmaFights(statusFilter: "live" | "past" | "all" = "live"): Promise<GameSummary[]> {
+  const endpointKey = "fights";
+  const endpointDef = getSportEndpoint("mma", endpointKey);
+
+  let params: Record<string, string | number | boolean> = {};
+  const availableYear = 2024;
+
+  if (statusFilter === "live") {
+    params = { live: "all" };
+  } else {
+    params = { year: availableYear };
+  }
+
+  let result;
+  try {
+    result = await multiSportGuardedCall<any[]>(
+      "mma",
+      endpointKey,
+      endpointDef.path,
+      endpointDef,
+      params,
+      { isLivePollCall: statusFilter === "live" }
+    );
+  } catch (error: any) {
+    console.warn(`MMA API error: ${error?.message || 'Unknown error'}`);
+    return [];
+  }
+
+  if (!result.ok || !result.data) {
+    if (!result.ok && result.reason) {
+      console.warn(`Failed to fetch MMA fights: ${result.reason}`);
+    }
+    return [];
+  }
+
+  // Transform MMA fight data to GameSummary format
+  return result.data
+    .filter((item: any) => {
+      const status = item.status?.short;
+      const finishedStatuses = ["FT", "KO", "SUB", "DEC", "NC", "DQ", "CAN", "ABD", "PST", "SUSP"];
+
+      if (statusFilter === "live") {
+        return status && !finishedStatuses.includes(status);
+      } else if (statusFilter === "past") {
+        return status && finishedStatuses.includes(status);
+      } else {
+        return status !== undefined;
+      }
+    })
+    .map((item: any) => {
+      // MMA has fighters instead of home/away teams
+      const fighter1 = item.fighters?.[0] || {};
+      const fighter2 = item.fighters?.[1] || {};
+
+      return {
+        gameId: String(item.id || item.fight?.id || "unknown"),
+        sportId: "mma" as SportId,
+        homeTeam: fighter1.name || item.homeTeam || "Fighter 1",
+        awayTeam: fighter2.name || item.awayTeam || "Fighter 2",
+        homeTeamId: fighter1.id || item.homeTeamId || 0,
+        awayTeamId: fighter2.id || item.awayTeamId || 0,
+        leagueId: item.league?.id || 0,
+        season: item.year || item.season || availableYear,
+        competition: item.league?.name || item.event?.name || "MMA",
+        homeScore: 0, // MMA doesn't have scores in the traditional sense
+        awayScore: 0,
+        elapsedMinutes: 0, // MMA doesn't have elapsed time like team sports
+        status: ["FT", "KO", "SUB", "DEC", "NC", "DQ", "CAN", "ABD", "PST", "SUSP"].includes(item.status?.short ?? "") ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
+      };
+    });
+}
+
+/**
+ * Fetch Formula 1 races - individual sport with drivers instead of teams
+ */
+async function fetchFormula1Races(statusFilter: "live" | "past" | "all" = "live"): Promise<GameSummary[]> {
+  const endpointKey = "races";
+  const endpointDef = getSportEndpoint("formula1", endpointKey);
+
+  let params: Record<string, string | number | boolean> = {};
+  const availableYear = 2024;
+
+  // Formula 1 uses the same endpoint for both live and past, filtering by status
+  params = { season: availableYear };
+
+  let result;
+  try {
+    result = await multiSportGuardedCall<any[]>(
+      "formula1",
+      endpointKey,
+      endpointDef.path,
+      endpointDef,
+      params,
+      { isLivePollCall: statusFilter === "live" }
+    );
+  } catch (error: any) {
+    console.warn(`Formula 1 API error: ${error?.message || 'Unknown error'}`);
+    return [];
+  }
+
+  if (!result.ok || !result.data) {
+    if (!result.ok && result.reason) {
+      console.warn(`Failed to fetch Formula 1 races: ${result.reason}`);
+    }
+    return [];
+  }
+
+  // Transform F1 race data to GameSummary format
+  console.log(`Formula 1 filtering - statusFilter: ${statusFilter}, total races: ${result.data.length}`);
+
+  // Transform F1 race data to GameSummary format
+  const finishedStatuses = ["Finished", "Completed", "DNF", "DNS", "DSQ", "Retired"];
+
+  const filtered = result.data.filter((item: any) => {
+    // Formula 1 uses status directly, not status.short
+    const status = item.status;
+
+    if (statusFilter === "live") {
+      return status && !finishedStatuses.includes(status);
+    } else if (statusFilter === "past") {
+      return status && finishedStatuses.includes(status);
+    } else {
+      return status !== undefined;
+    }
+  });
+
+  return filtered.map((item: any) => {
+    // F1 has circuits and drivers, not home/away teams
+    // Use the grand prix name as the competition and circuit as context
+    const circuit = item.circuit || {};
+    const competition = item.competition?.name || circuit.name || "Formula 1";
+
+    return {
+      gameId: String(item.id || item.competition?.id || "unknown"),
+      sportId: "formula1" as SportId,
+      homeTeam: competition, // Use GP name instead of fake driver
+      awayTeam: circuit.name || "Circuit", // Use circuit name instead of fake driver
+      homeTeamId: 0, // F1 doesn't have team IDs in the traditional sense
+      awayTeamId: 0,
+      leagueId: circuit.id || item.competition?.id || 0,
+      season: item.season || availableYear,
+      competition,
+      homeScore: 0, // F1 doesn't have scores
+      awayScore: 0,
+      elapsedMinutes: 0, // F1 doesn't have elapsed time like team sports
+      status: finishedStatuses.includes(item.status) ? "finished" : item.status === "NS" ? "scheduled" : "live",
+    };
+  });
+}
 
 /**
  * Generic function to fetch games for any sport
  */
 async function fetchGames(sportId: SportId, statusFilter: "live" | "past" | "all" = "live"): Promise<GameSummary[]> {
-  const endpointKey = "games.live";
-  const endpointDef = getSportEndpoint(sportId, endpointKey);
-  
-  // Different sports have different API patterns
-  let params: Record<string, string | number | boolean> = {};
-  // Free plan only has access to seasons 2022-2024
-  const availableYear = 2024;
-  
-  if (sportId === "football") {
-    params = { live: "all" };
-  } else if (sportId === "baseball") {
-    // Baseball requires league and season parameters (plain year format)
-    params = { league: 1, season: availableYear }; // MLB league ID 1
-  } else if (sportId === "basketball") {
-    // Basketball uses season format like "2023-2024"
-    params = { league: 12, season: `${availableYear - 1}-${availableYear}` }; // NBA league ID 12
-  } else if (sportId === "nba") {
-    // NBA (dedicated API) requires season parameter
-    params = { season: `${availableYear - 1}-${availableYear}` };
-  } else if (sportId === "hockey") {
-    // Hockey uses season format like "2023-2024"
-    params = { league: 57, season: `${availableYear - 1}-${availableYear}` }; // NHL league ID 57
-  } else if (sportId === "nfl") {
-    // NFL uses plain year format
-    params = { league: 1, season: availableYear }; // NFL league ID 1
-  } else if (sportId === "handball") {
-    params = { league: 1, season: availableYear }; // Default handball league
-  } else if (sportId === "volleyball") {
-    params = { league: 1, season: availableYear }; // Default volleyball league
-  } else if (sportId === "rugby") {
-    params = { league: 1, season: availableYear }; // Default rugby league
-  } else if (sportId === "afl") {
-    params = { league: 1, season: availableYear }; // AFL league ID 1
-  } else {
-    // Default to live parameter for other sports
-    params = { live: "all" };
+  // Handle individual sports (MMA, Formula 1) separately
+  if (sportId === "mma") {
+    return fetchMmaFights(statusFilter);
   }
-  
-  const result = await multiSportGuardedCall<LiveGameItem[]>(
-    sportId,
-    endpointKey,
-    endpointDef.path,
-    endpointDef,
-    params,
-    { isLivePollCall: true }
-  );
-  
-  if (!result.ok || !result.data) {
+  if (sportId === "formula1") {
+    return fetchFormula1Races(statusFilter);
+  }
+
+  let params: Record<string, string | number | boolean> = {};
+  const availableYear = 2024;
+
+  // Set parameters based on sport
+  if (sportId === "football") {
+    // Football uses the football-agent system (guardedCall)
+    const footballEndpointKey = statusFilter === "live" ? "fixtures.live" : "fixtures.list";
+    if (statusFilter === "past") {
+      params = { season: availableYear, last: 100 };
+    } else if (statusFilter === "live") {
+      params = { live: "all" };
+    } else {
+      params = { season: availableYear };
+    }
+    try {
+      const result = await guardedCall<any[]>(footballEndpointKey, params, { isLivePollCall: statusFilter === "live" });
+      if (!result.ok || !result.data) {
+        if (!result.ok && result.reason) {
+          console.warn(`Failed to fetch games for ${sportId}: ${result.reason}`);
+        }
+        return [];
+      }
+      // Transform football-agent response to GameSummary format
+      return result.data.map((item) => ({
+        gameId: String(item.fixture?.id || item.id),
+        sportId: "football" as SportId,
+        homeTeam: item.teams?.home?.name || item.homeTeam,
+        awayTeam: item.teams?.away?.name || item.awayTeam,
+        homeTeamId: item.teams?.home?.id || item.homeTeamId || 0,
+        awayTeamId: item.teams?.away?.id || item.awayTeamId || 0,
+        leagueId: item.league?.id || item.leagueId || 0,
+        season: item.league?.season || item.season || availableYear,
+        competition: item.league?.name || item.competition || "Competition",
+        homeScore: normalizeScore(item.goals?.home ?? item.scores?.home),
+        awayScore: normalizeScore(item.goals?.away ?? item.scores?.away),
+        elapsedMinutes: item.status?.elapsed ?? 0,
+        status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
+      }));
+    } catch (error: any) {
+      // Handle rate limiting (429) and other errors gracefully
+      console.warn(`Football API error (${error?.status || 'unknown'}): ${error?.message || 'Unknown error'}`);
+      return [];
+    }
+  }
+
+  // For other team sports, use a unified approach
+  let endpointKey = "games";
+  const endpointDef = getSportEndpoint(sportId, endpointKey);
+
+  if (sportId === "baseball") {
+    params = { league: 1, season: availableYear };
+  } else if (sportId === "basketball") {
+    params = { league: 12, season: `${availableYear - 1}-${availableYear}` };
+  } else if (sportId === "nba") {
+    // NBA uses a different endpoint for live games
+    if (statusFilter === "live") {
+      endpointKey = "games.live";
+      params = { season: availableYear };
+    } else {
+      params = { season: availableYear };
+    }
+  } else if (sportId === "hockey") {
+    params = { league: 57, season: availableYear };
+  } else if (sportId === "nfl") {
+    params = { league: 1, season: availableYear };
+  } else if (sportId === "handball") {
+    params = { league: 1, season: availableYear };
+  } else if (sportId === "volleyball") {
+    params = { league: 1, season: availableYear };
+  } else if (sportId === "rugby") {
+    params = { league: 1, season: availableYear };
+  } else if (sportId === "afl") {
+    params = { league: 1, season: availableYear };
+  } else {
+    params = { season: availableYear };
+  }
+
+  // Re-fetch endpointDef if we changed endpointKey for NBA
+  if (sportId === "nba" && statusFilter === "live") {
+    const liveEndpointDef = getSportEndpoint(sportId, endpointKey);
+    const result = await multiSportGuardedCall<any[]>(
+      sportId,
+      endpointKey,
+      liveEndpointDef.path,
+      liveEndpointDef,
+      params,
+      { isLivePollCall: true }
+    );
+    if (!result.ok || !result.data) {
+      if (!result.ok && result.reason) {
+        console.warn(`Failed to fetch games for ${sportId}: ${result.reason}`);
+      }
+      return [];
+    }
+    return transformGameData(result.data, sportId, statusFilter);
+  }
+
+  let result;
+  try {
+    result = await multiSportGuardedCall<LiveGameItem[]>(
+      sportId,
+      endpointKey,
+      endpointDef.path,
+      endpointDef,
+      params,
+      { isLivePollCall: statusFilter === "live" }
+    );
+  } catch (error: any) {
+    console.warn(`API error for ${sportId}: ${error?.message || 'Unknown error'}`);
     return [];
   }
 
-  // Filter games based on status filter
-  const filteredGames = result.data.filter((item) => {
-    const status = item.status?.short;
-    const finishedStatuses = ["FT", "AET", "PEN", "CAN", "ABD", "PST", "SUSP"];
-    
-    if (statusFilter === "live") {
-      // Include live games and not-started games (upcoming)
-      return status && !finishedStatuses.includes(status);
-    } else if (statusFilter === "past") {
-      // Include only finished games
-      return status && finishedStatuses.includes(status);
-    } else {
-      // Include all games
-      return status !== undefined;
+  if (!result.ok || !result.data) {
+    if (!result.ok && result.reason) {
+      console.warn(`Failed to fetch games for ${sportId}: ${result.reason}`);
     }
-  });
+    return [];
+  }
 
-  return filteredGames.map((item) => {
-    // Handle different score formats across sports
-    let homeScore = 0;
-    let awayScore = 0;
-    
-    if (sportId === "baseball") {
-      // Baseball has nested score structure
-      const homeScoreObj = item.scores.home as unknown as { total: number } | number;
-      const awayScoreObj = item.scores.away as unknown as { total: number } | number;
-      homeScore = typeof homeScoreObj === 'object' ? homeScoreObj.total : homeScoreObj;
-      awayScore = typeof awayScoreObj === 'object' ? awayScoreObj.total : awayScoreObj;
-    } else {
-      // Default score structure
-      homeScore = item.scores.home as number ?? 0;
-      awayScore = item.scores.away as number ?? 0;
-    }
-    
-    return {
-      gameId: String(item.id),
-      sportId,
-      homeTeam: item.teams.home.name,
-      awayTeam: item.teams.away.name,
-      homeTeamId: item.teams.home.id,
-      awayTeamId: item.teams.away.id,
-      leagueId: item.league.id,
-      season: item.league.season,
-      competition: item.league.name,
-      homeScore,
-      awayScore,
-      elapsedMinutes: item.status?.elapsed ?? 0,
-      status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
-    };
-  });
+  return transformGameData(result.data, sportId, statusFilter);
+}
+
+/**
+ * Transform raw game data into GameSummary format
+ */
+function transformGameData(data: any[], sportId: SportId, statusFilter: "live" | "past" | "all"): GameSummary[] {
+  const finishedStatuses = ["FT", "AET", "PEN", "CAN", "ABD", "PST", "SUSP", "AOT", "AP"];
+
+  return data
+    .filter((item: any) => {
+      const status = item.status?.short;
+
+      if (statusFilter === "live") {
+        return status && !finishedStatuses.includes(status);
+      } else if (statusFilter === "past") {
+        return status && finishedStatuses.includes(status);
+      } else {
+        return status !== undefined;
+      }
+    })
+    .map((item: any) => {
+      const homeScore = normalizeScore(item.scores?.home);
+      const awayScore = normalizeScore(item.scores?.away);
+
+      // Generate a unique gameId if id is missing (AFL case)
+      const uniqueId = item.id || item.game?.id || `${item.teams?.home?.id}-${item.teams?.away?.id}-${item.date || Date.now()}`;
+
+      return {
+        gameId: String(uniqueId),
+        sportId,
+        homeTeam: item.teams?.home?.name || "Home Team",
+        awayTeam: item.teams?.away?.name || "Away Team",
+        homeTeamId: item.teams?.home?.id || 0,
+        awayTeamId: item.teams?.away?.id || 0,
+        leagueId: item.league?.id || 0,
+        season: item.league?.season || 2024,
+        competition: item.league?.name || "Competition",
+        homeScore,
+        awayScore,
+        elapsedMinutes: item.status?.elapsed ?? 0,
+        status: finishedStatuses.includes(item.status?.short ?? "") ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
+      };
+    });
 }
 
 function getOrInitializeGameState(game: GameSummary): GameState {
@@ -196,6 +454,9 @@ function getOrInitializeGameState(game: GameSummary): GameState {
   if (existing) {
     return existing;
   }
+
+  const sportDef = getSportDefinition(game.sportId);
+  const hasPredictions = sportDef.hasPredictions;
 
   const newState: GameState = {
     gameId: game.gameId,
@@ -214,7 +475,7 @@ function getOrInitializeGameState(game: GameSummary): GameState {
     events: [],
     commentary: [],
     aiPrediction: null,
-    aiPredictionStatus: "loading",
+    aiPredictionStatus: hasPredictions ? "loading" : "unavailable",
     currentWinProbability: { home: 0.5, away: 0.5, draw: 0 },
     winProbabilityHistory: [],
   };
@@ -263,41 +524,37 @@ export async function pollLiveGames(
   sportId: SportId,
   onUpdate: (gameId: string, state: GameState) => void
 ): Promise<void> {
-  const liveGames = await fetchGames(sportId, "live");
-  
-  const sportPredictedFixtures = predictedFixtures.get(sportId) || new Set();
-  predictedFixtures.set(sportId, sportPredictedFixtures);
-  
-  for (const game of liveGames) {
-    const gamesMap = sportGames.get(sportId);
-    const oldState = gamesMap?.get(game.gameId);
-    const newState = getOrInitializeGameState(game);
-    
-    // Handle different score formats across sports
-    let homeScore = game.homeScore;
-    let awayScore = game.awayScore;
-    
-    if (sportId === "baseball") {
-      // Baseball stores scores as objects with total property
-      homeScore = (game.homeScore as any)?.total ?? game.homeScore;
-      awayScore = (game.awayScore as any)?.total ?? game.awayScore;
-    }
-    
-    newState.homeScore = homeScore;
-    newState.awayScore = awayScore;
-    newState.elapsedMinutes = game.elapsedMinutes;
-    newState.status = game.status;
-    
-    const newEvents = detectGameEventChanges(oldState ?? newState, game);
-    if (newEvents.length > 0) {
-      newState.events.push(...newEvents);
-    }
-    
-    // Trigger AI prediction only for football on first sight of a fixture (fire-and-forget)
-    if (sportId === "football" && !oldState && !sportPredictedFixtures.has(game.gameId)) {
-      sportPredictedFixtures.add(game.gameId);
-      
-      generateMatchPrediction({
+  try {
+    const liveGames = await fetchGames(sportId, "live");
+
+    const sportDef = getSportDefinition(sportId);
+    const hasPredictions = sportDef.hasPredictions;
+
+    const sportPredictedFixtures = predictedFixtures.get(sportId) || new Set();
+    predictedFixtures.set(sportId, sportPredictedFixtures);
+
+    for (const game of liveGames) {
+      const gamesMap = sportGames.get(sportId);
+      const oldState = gamesMap?.get(game.gameId);
+      const newState = getOrInitializeGameState(game);
+
+      // `game` came from fetchGames(), which already normalized scores via normalizeScore() —
+      // no per-sport handling needed here.
+      newState.homeScore = game.homeScore;
+      newState.awayScore = game.awayScore;
+      newState.elapsedMinutes = game.elapsedMinutes;
+      newState.status = game.status;
+
+      const newEvents = detectGameEventChanges(oldState ?? newState, game);
+      if (newEvents.length > 0) {
+        newState.events.push(...newEvents);
+      }
+
+      // Trigger AI prediction for any sport with predictions enabled on first sight of a fixture (fire-and-forget)
+      if (hasPredictions && !oldState && !sportPredictedFixtures.has(game.gameId)) {
+        sportPredictedFixtures.add(game.gameId);
+
+      generateGamePrediction(sportId, {
         fixtureId: Number(game.gameId),
         homeTeamId: game.homeTeamId,
         awayTeamId: game.awayTeamId,
@@ -324,19 +581,22 @@ export async function pollLiveGames(
           onUpdate(game.gameId, state);
         }
       }).catch((error) => {
-        console.error(`Failed to generate prediction for ${game.gameId}:`, error);
+        // Silently handle prediction errors to avoid log spam
         const state = sportGames.get(sportId)?.get(game.gameId);
         if (state) {
           state.aiPredictionStatus = "unavailable";
         }
       });
     }
-    
+
     gamesMap?.set(game.gameId, newState);
-    
+
     if (newEvents.length > 0) {
       onUpdate(game.gameId, newState);
     }
+  }
+  } catch (error: any) {
+    console.warn(`Failed to poll live games for ${sportId}: ${error?.message || 'Unknown error'}`);
   }
 }
 
@@ -357,8 +617,8 @@ export function getLiveGames(sportId: SportId): GameSummary[] {
         leagueId: state.leagueId,
         season: state.season,
         competition: state.competition,
-        homeScore: state.homeScore,
-        awayScore: state.awayScore,
+        homeScore: normalizeScore(state.homeScore as unknown as number | Record<string, number>),
+        awayScore: normalizeScore(state.awayScore as unknown as number | Record<string, number>),
         elapsedMinutes: state.elapsedMinutes,
         status: state.status,
       };
@@ -393,21 +653,9 @@ export async function fetchGameById(sportId: SportId, gameId: string): Promise<G
   }
 
   const item = result.data[0];
-  
-  // Handle different score formats across sports
-  let homeScore = 0;
-  let awayScore = 0;
-  
-  if (sportId === "baseball") {
-    const homeScoreObj = item.scores.home as unknown as { total: number } | number;
-    const awayScoreObj = item.scores.away as unknown as { total: number } | number;
-    homeScore = typeof homeScoreObj === 'object' ? homeScoreObj.total : homeScoreObj;
-    awayScore = typeof awayScoreObj === 'object' ? awayScoreObj.total : awayScoreObj;
-  } else {
-    homeScore = item.scores.home as number ?? 0;
-    awayScore = item.scores.away as number ?? 0;
-  }
-  
+  const homeScore = normalizeScore(item.scores.home);
+  const awayScore = normalizeScore(item.scores.away);
+
   return {
     gameId: String(item.id),
     sportId,
@@ -421,7 +669,7 @@ export async function fetchGameById(sportId: SportId, gameId: string): Promise<G
     homeScore,
     awayScore,
     elapsedMinutes: item.status?.elapsed ?? 0,
-    status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
+    status: ["FT", "AET", "PEN", "CAN", "ABD", "PST", "SUSP", "AOT", "AP"].includes(item.status?.short ?? "") ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
     commentary: [],
     events: [],
     aiPrediction: null,
@@ -452,17 +700,13 @@ export function getAllGames(sportId: SportId): Map<string, GameState> {
 
 // ========== BACKWARD COMPATIBILITY: Football-specific functions ==========
 
-type LiveFixtureItem = {
-  fixture: { id: number };
-  teams: { home: { id: number; name: string }; away: { id: number; name: string } };
-  league: { id: number; name: string; season: number };
-  goals: { home: number | null; away: number | null };
-  status?: { elapsed: number | null; short: string };
-};
-
 async function fetchLiveFixtures(): Promise<Match[]> {
   const result = await guardedCall<LiveFixtureItem[]>("fixtures.live", { live: "all" }, { isLivePollCall: true });
   if (!result.ok || !result.data) {
+    // Log the reason for debugging but don't throw - just return empty array
+    if (!result.ok && result.reason) {
+      console.warn(`Failed to fetch live fixtures: ${result.reason}`);
+    }
     return [];
   }
 
@@ -476,8 +720,8 @@ async function fetchLiveFixtures(): Promise<Match[]> {
     leagueId: item.league.id,
     season: item.league.season,
     competition: item.league.name,
-    homeScore: item.goals.home ?? 0,
-    awayScore: item.goals.away ?? 0,
+    homeScore: normalizeScore(item.goals.home),
+    awayScore: normalizeScore(item.goals.away),
     elapsedMinutes: item.status?.elapsed ?? 0,
     status: item.status?.short === "FT" ? "finished" : item.status?.short === "NS" ? "scheduled" : "live",
   }));

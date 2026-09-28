@@ -10,18 +10,18 @@ interface SportSelectScreenProps {
 
 // Fallback sports data in case API fails
 const FALLBACK_SPORTS: SportDefinition[] = [
-  { id: "football", label: "Football", icon: "⚽", kind: "team-game", hasPredictions: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live football scores, standings, and AI predictions" },
-  { id: "basketball", label: "Basketball", icon: "🏀", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live basketball scores and standings" },
-  { id: "baseball", label: "Baseball", icon: "⚾", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live baseball scores and standings" },
-  { id: "hockey", label: "Hockey", icon: "🏒", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live hockey scores and standings" },
-  { id: "handball", label: "Handball", icon: "🤾", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live handball scores and standings" },
-  { id: "volleyball", label: "Volleyball", icon: "🏐", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live volleyball scores and standings" },
-  { id: "rugby", label: "Rugby", icon: "🏉", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live rugby scores and standings" },
-  { id: "afl", label: "AFL", icon: "🦘", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live AFL scores and standings" },
-  { id: "nfl", label: "NFL", icon: "🏈", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NFL scores and standings" },
-  { id: "nba", label: "NBA", icon: "🏀", kind: "team-game", hasPredictions: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NBA scores, standings, and player stats" },
-  { id: "formula1", label: "Formula 1", icon: "🏎️", kind: "motorsport", hasPredictions: false, hasLiveGames: false, hasStandings: true, hasTeams: true, hasHeadToHead: false, description: "F1 races, driver standings, and team rankings" },
-  { id: "mma", label: "MMA", icon: "🥊", kind: "combat", hasPredictions: false, hasLiveGames: false, hasStandings: false, hasTeams: false, hasHeadToHead: false, description: "MMA fights and fighter rankings" },
+  { id: "football", label: "Football", icon: "⚽", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live football scores, standings, and AI predictions" },
+  { id: "basketball", label: "Basketball", icon: "🏀", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live basketball scores, standings, and AI predictions" },
+  { id: "baseball", label: "Baseball", icon: "⚾", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live baseball scores, standings, and AI predictions" },
+  { id: "hockey", label: "Hockey", icon: "🏒", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live hockey scores, standings, and AI predictions" },
+  { id: "handball", label: "Handball", icon: "🤾", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live handball scores, standings, and AI predictions" },
+  { id: "volleyball", label: "Volleyball", icon: "🏐", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live volleyball scores, standings, and AI predictions" },
+  { id: "rugby", label: "Rugby", icon: "🏉", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live rugby scores, standings, and AI predictions" },
+  { id: "afl", label: "AFL", icon: "🦘", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live AFL scores, standings, and AI predictions" },
+  { id: "nfl", label: "NFL", icon: "🏈", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NFL scores, standings, and AI predictions" },
+  { id: "nba", label: "NBA", icon: "🏀", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NBA scores, standings, player stats, and AI predictions" },
+  { id: "formula1", label: "Formula 1", icon: "🏎️", kind: "motorsport", hasPredictions: false, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: false, description: "F1 races, driver standings, and team rankings" },
+  { id: "mma", label: "MMA", icon: "🥊", kind: "combat", hasPredictions: false, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: false, description: "MMA fights and fighter rankings" },
 ];
 
 export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: SportSelectScreenProps) {

@@ -23,7 +23,6 @@ export const ENDPOINTS: EndpointDefinition[] = [
     description: "Live Formula 1 races with real-time data",
     params: [
       { name: "live", required: false, description: "Filter for live races only (set to 'all')" },
-      { name: "season", required: false, description: "Filter by season year" },
     ],
     tier: "live",
     cacheTtlSeconds: 60,

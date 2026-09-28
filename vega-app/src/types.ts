@@ -22,6 +22,7 @@ export interface SportDefinition {
   icon: string;
   kind: SportKind;
   hasPredictions: boolean;
+  supportsDraw: boolean;
   hasLiveGames: boolean;
   hasStandings: boolean;
   hasTeams: boolean;

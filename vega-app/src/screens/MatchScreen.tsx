@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, ScrollView, Pressable, BackHandler } from "react-native";
 import { colors } from "../theme";
-import { getGameState, getMatchState, type SportId, type GameState, type GameSummary, type MatchState, type CommentaryEntry } from "../api";
+import { getGameState, getMatchState } from "../api";
+import type { SportId, GameState, GameSummary, MatchState, CommentaryEntry } from "../types";
 import { useGameSocket } from "../useMatchSocket";
 
 interface GameScreenProps {
@@ -77,10 +78,16 @@ export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
     );
   }
 
-  const showPredictions = sportId === "football";
+  const showPredictions = sportId !== "formula1" && sportId !== "mma";
   const homeProb = (gameState.currentWinProbability?.home ?? 0) * 100;
   const awayProb = (gameState.currentWinProbability?.away ?? 0) * 100;
   const drawProb = (gameState.currentWinProbability?.draw ?? 0) * 100;
+  const hasDraw = drawProb > 0;
+
+  // For individual sports (MMA, F1), use different labels
+  const isIndividualSport = sportId === "mma" || sportId === "formula1";
+  const homeLabel = isIndividualSport ? "Competitor 1" : "Home";
+  const awayLabel = isIndividualSport ? "Competitor 2" : "Away";
 
   return (
     <View style={styles.container}>
@@ -136,12 +143,14 @@ export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
                     { width: `${homeProb}%`, backgroundColor: "#0074B8" },
                   ]}
                 />
-                <View
-                  style={[
-                    styles.probabilityFill,
-                    { width: `${drawProb}%`, backgroundColor: "#888888" },
-                  ]}
-                />
+                {hasDraw && (
+                  <View
+                    style={[
+                      styles.probabilityFill,
+                      { width: `${drawProb}%`, backgroundColor: "#888888" },
+                    ]}
+                  />
+                )}
                 <View
                   style={[
                     styles.probabilityFill,
@@ -151,13 +160,13 @@ export default function GameScreen({ sportId, game, onBack }: GameScreenProps) {
               </View>
               <View style={styles.probabilityLabels}>
                 <Text style={styles.probabilityText}>{homeProb.toFixed(0)}%</Text>
-                <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>
+                {hasDraw && <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>}
                 <Text style={styles.probabilityText}>{awayProb.toFixed(0)}%</Text>
               </View>
               <View style={styles.probabilityTeamLabels}>
-                <Text style={styles.teamLabel}>Home</Text>
-                <Text style={styles.teamLabel}>Draw</Text>
-                <Text style={styles.teamLabel}>Away</Text>
+                <Text style={styles.teamLabel}>{homeLabel}</Text>
+                {hasDraw && <Text style={styles.teamLabel}>Draw</Text>}
+                <Text style={styles.teamLabel}>{awayLabel}</Text>
               </View>
               <View style={styles.rationaleContainer}>
                 <Text style={styles.rationaleText}>{gameState.aiPrediction.rationale}</Text>
@@ -253,6 +262,12 @@ export function MatchScreen({ matchId, onBack }: { matchId: string; onBack: () =
   const homeProb = gameState.currentWinProbability.home * 100;
   const awayProb = gameState.currentWinProbability.away * 100;
   const drawProb = gameState.aiPrediction ? gameState.aiPrediction.draw : 0;
+  const hasDraw = drawProb > 0;
+
+  // For individual sports (MMA, F1), use different labels
+  const isIndividualSport = gameState.sportId === "mma" || gameState.sportId === "formula1";
+  const homeLabel = isIndividualSport ? "Competitor 1" : "Home";
+  const awayLabel = isIndividualSport ? "Competitor 2" : "Away";
 
   return (
     <View style={styles.container}>
@@ -307,12 +322,14 @@ export function MatchScreen({ matchId, onBack }: { matchId: string; onBack: () =
                   { width: `${homeProb}%`, backgroundColor: "#0074B8" },
                 ]}
               />
-              <View
-                style={[
-                  styles.probabilityFill,
-                  { width: `${drawProb}%`, backgroundColor: "#888888" },
-                ]}
-              />
+              {hasDraw && (
+                <View
+                  style={[
+                    styles.probabilityFill,
+                    { width: `${drawProb}%`, backgroundColor: "#888888" },
+                  ]}
+                />
+              )}
               <View
                 style={[
                   styles.probabilityFill,
@@ -322,13 +339,13 @@ export function MatchScreen({ matchId, onBack }: { matchId: string; onBack: () =
             </View>
             <View style={styles.probabilityLabels}>
               <Text style={styles.probabilityText}>{homeProb.toFixed(0)}%</Text>
-              <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>
+              {hasDraw && <Text style={styles.probabilityText}>{drawProb.toFixed(0)}%</Text>}
               <Text style={styles.probabilityText}>{awayProb.toFixed(0)}%</Text>
             </View>
             <View style={styles.probabilityTeamLabels}>
-              <Text style={styles.teamLabel}>Home</Text>
-              <Text style={styles.teamLabel}>Draw</Text>
-              <Text style={styles.teamLabel}>Away</Text>
+              <Text style={styles.teamLabel}>{homeLabel}</Text>
+              {hasDraw && <Text style={styles.teamLabel}>Draw</Text>}
+              <Text style={styles.teamLabel}>{awayLabel}</Text>
             </View>
             <View style={styles.rationaleContainer}>
               <Text style={styles.rationaleText}>{gameState.aiPrediction.rationale}</Text>
