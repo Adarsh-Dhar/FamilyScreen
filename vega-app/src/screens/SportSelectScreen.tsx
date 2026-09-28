@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable, ActivityIndicator } from "react-native";
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator } from "react-native";
+import { Focusable } from "../components/Focusable";
 import { colors } from "../theme";
 import { getSports, type SportDefinition } from "../api";
 
@@ -8,37 +9,24 @@ interface SportSelectScreenProps {
   onBack?: () => void;
 }
 
-// Fallback sports data in case API fails
-const FALLBACK_SPORTS: SportDefinition[] = [
-  { id: "football", label: "Football", icon: "⚽", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live football scores, standings, and AI predictions" },
-  { id: "basketball", label: "Basketball", icon: "🏀", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live basketball scores, standings, and AI predictions" },
-  { id: "baseball", label: "Baseball", icon: "⚾", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live baseball scores, standings, and AI predictions" },
-  { id: "hockey", label: "Hockey", icon: "🏒", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live hockey scores, standings, and AI predictions" },
-  { id: "handball", label: "Handball", icon: "🤾", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live handball scores, standings, and AI predictions" },
-  { id: "volleyball", label: "Volleyball", icon: "🏐", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live volleyball scores, standings, and AI predictions" },
-  { id: "rugby", label: "Rugby", icon: "🏉", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live rugby scores, standings, and AI predictions" },
-  { id: "afl", label: "AFL", icon: "🦘", kind: "team-game", hasPredictions: true, supportsDraw: true, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live AFL scores, standings, and AI predictions" },
-  { id: "nfl", label: "NFL", icon: "🏈", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NFL scores, standings, and AI predictions" },
-  { id: "nba", label: "NBA", icon: "🏀", kind: "team-game", hasPredictions: true, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: true, description: "Live NBA scores, standings, player stats, and AI predictions" },
-  { id: "formula1", label: "Formula 1", icon: "🏎️", kind: "motorsport", hasPredictions: false, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: false, description: "F1 races, driver standings, and team rankings" },
-  { id: "mma", label: "MMA", icon: "🥊", kind: "combat", hasPredictions: false, supportsDraw: false, hasLiveGames: true, hasStandings: true, hasTeams: true, hasHeadToHead: false, description: "MMA fights and fighter rankings" },
-];
-
 export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: SportSelectScreenProps) {
   const [sports, setSports] = useState<SportDefinition[]>([]);
   const [loading, setLoading] = useState(true);
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     loadSports();
   }, []);
 
   async function loadSports() {
+    setLoading(true);
+    setFailed(false);
     try {
       const response = await getSports();
       setSports(response.sports);
     } catch (error) {
-      console.error("Failed to load sports from API, using fallback:", error);
-      setSports(FALLBACK_SPORTS);
+      console.error("Failed to load sports:", error);
+      setFailed(true);
     } finally {
       setLoading(false);
     }
@@ -49,6 +37,17 @@ export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: Sp
       <View style={styles.container}>
         <ActivityIndicator size="large" color="#FF6200" />
         <Text style={styles.loadingText}>Loading sports...</Text>
+      </View>
+    );
+  }
+
+  if (failed) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.loadingText}>Can't reach the sports server.</Text>
+        <Focusable style={styles.sportTile} onPress={loadSports}>
+          <Text style={styles.sportLabel}>Retry</Text>
+        </Focusable>
       </View>
     );
   }
@@ -64,7 +63,7 @@ export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: Sp
       <ScrollView style={styles.scrollView}>
         <View style={styles.grid}>
           {sports.map((sport) => (
-            <Pressable
+            <Focusable
               key={sport.id}
               style={styles.sportTile}
               onPress={() => onSportSelect(sport)}
@@ -77,7 +76,7 @@ export default function SportSelectScreen({ onSportSelect, onBack: _onBack }: Sp
                   <Text style={styles.predictionBadgeText}>AI Predictions</Text>
                 </View>
               )}
-            </Pressable>
+            </Focusable>
           ))}
         </View>
       </ScrollView>

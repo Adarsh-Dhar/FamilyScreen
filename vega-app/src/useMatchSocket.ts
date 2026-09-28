@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { WS_URL } from "./config";
-import type { MatchState, CommentaryEntry, GameState, SportId } from "./types";
+import type { CommentaryEntry, GameState, SportId } from "./types";
 
 // WebSocket hook for live game updates (multi-sport)
 // Registers with sportId + gameId and receives game_update and commentary frames
@@ -57,13 +57,4 @@ export function useGameSocket(
       socket?.close();
     };
   }, [sportId, gameId]);
-}
-
-// Legacy football WebSocket hook (for backward compatibility)
-export function useMatchSocket(
-  matchId: string,
-  onMatchUpdate: (state: MatchState) => void,
-  onCommentary: (commentary: CommentaryEntry) => void
-) {
-  return useGameSocket("football", matchId, onMatchUpdate, onCommentary);
 }

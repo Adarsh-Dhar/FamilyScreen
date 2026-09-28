@@ -15,7 +15,8 @@ const AskSchema = z.object({
 router.post("/agent/ask", async (req, res) => {
   const parsed = AskSchema.safeParse(req.body);
   if (!parsed.success) {
-    return res.status(400).json({ error: "Body must be { question: string }, 1-300 chars." });
+    res.status(400).json({ error: "Body must be { question: string }, 1-300 chars." });
+    return;
   }
 
   try {

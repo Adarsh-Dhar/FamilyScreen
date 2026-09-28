@@ -228,3 +228,13 @@ export function getTeamGameSports(): SportDefinition[] {
 export function getSportsWithPredictions(): SportDefinition[] {
   return getAllSports().filter((sport) => sport.hasPredictions);
 }
+
+/** Sports allowed to spend quota on AI predictions (each costs ~3 API calls per game). Env: PREDICTION_SPORTS=football,nba */
+export const PREDICTION_SPORTS = new Set(
+  (process.env["PREDICTION_SPORTS"] ?? "football").split(",").map((v) => v.trim()),
+);
+
+// Make /api/sports tell the UI the truth about which sports really produce predictions.
+for (const sport of Object.values(SPORTS_REGISTRY)) {
+  sport.hasPredictions = sport.kind === "team-game" && PREDICTION_SPORTS.has(sport.id);
+}

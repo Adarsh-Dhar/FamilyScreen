@@ -52,11 +52,13 @@ export interface GameState {
   homeTeamId: number;
   awayTeamId: number;
   leagueId: number;
-  season: number;
+  season: number | string;
   competition: string;
   homeScore: number;
   awayScore: number;
   elapsedMinutes: number;
+  /** "63'", "Q3", "P2", "IN5", "HT", "FT", "NS" — print this next to the score. */
+  periodLabel: string;
   status: "live" | "finished" | "scheduled";
   events: GameEvent[];
   commentary: CommentaryEntry[];
@@ -75,17 +77,16 @@ export interface GameSummary {
   homeTeamId: number;
   awayTeamId: number;
   leagueId: number;
-  season: number;
+  season: number | string;
   competition: string;
   homeScore: number;
   awayScore: number;
   elapsedMinutes: number;
+  periodLabel: string;
   status: "live" | "finished" | "scheduled";
 }
 
-// Football-specific types (for backward compatibility)
-export type MatchEvent = GameEvent;
-export type MatchState = GameState;
+// Alias used by components/Tile.tsx (for backward compatibility)
 export type Match = GameSummary;
 
 export interface WinProbabilitySnapshot {
@@ -101,10 +102,6 @@ export interface MatchPrediction {
   rationale: string;
   confidence: "high" | "medium" | "low";
   dataSources: string[];
-}
-
-export interface MatchesResponse {
-  matches: Match[];
 }
 
 export interface GamesResponse {
@@ -130,9 +127,21 @@ export interface CommentaryFrame {
   commentary: CommentaryEntry;
 }
 
-// Legacy football WebSocket frames (for backward compatibility)
-export interface MatchUpdateFrame {
-  type: "match_update";
-  matchId: string;
-  state: MatchState;
+export type SportFeature = "live" | "past" | "standings";
+
+export interface StandingRow {
+  position: number;
+  teamId: number;
+  team: string;
+  played: number;
+  won: number;
+  drawn: number;
+  lost: number;
+  points: number | null;
+}
+
+export interface ActiveLeague {
+  leagueId: number;
+  name: string;
+  season: number | string;
 }

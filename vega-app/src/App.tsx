@@ -2,93 +2,56 @@ import React, { useState } from "react";
 import { SafeAreaView, StatusBar, StyleSheet } from "react-native";
 import { colors } from "./theme";
 import SportSelectScreen from "./screens/SportSelectScreen";
+import SportFeatureScreen from "./screens/SportFeatureScreen";
 import GameListScreen from "./screens/GameListScreen";
-import GameScreen, { MatchScreen } from "./screens/MatchScreen";
-import MatchListScreen from "./screens/MatchListScreen";
-import type { SportDefinition, GameSummary } from "./types";
+import StandingsScreen from "./screens/StandingsScreen";
+import GameScreen from "./screens/MatchScreen";
+import type { GameSummary, SportDefinition, SportFeature } from "./types";
 
-type NavigationState = 
-  | { screen: "sport-select" }
-  | { screen: "game-list"; sport: SportDefinition }
-  | { screen: "game-detail"; sport: SportDefinition; game: GameSummary }
-  | { screen: "legacy-match-list" }
-  | { screen: "legacy-match-detail"; matchId: string };
+// Sport select → features → (game list → game detail | standings)
+type Nav =
+  | { screen: "sports" }
+  | { screen: "features"; sport: SportDefinition }
+  | { screen: "games"; sport: SportDefinition; filter: "live" | "past" }
+  | { screen: "standings"; sport: SportDefinition }
+  | { screen: "game"; sport: SportDefinition; filter: "live" | "past"; game: GameSummary };
 
 export default function App() {
-  const [navState, setNavState] = useState<NavigationState>({ screen: "sport-select" });
+  const [nav, setNav] = useState<Nav>({ screen: "sports" });
 
-  const handleSportSelect = (sport: SportDefinition) => {
-    setNavState({ screen: "game-list", sport });
-  };
-
-  const handleGameSelect = (game: GameSummary) => {
-    if (navState.screen === "game-list") {
-      setNavState({ screen: "game-detail", sport: navState.sport, game });
-    }
-  };
-
-  const handleBackToGameList = () => {
-    if (navState.screen === "game-detail") {
-      setNavState({ screen: "game-list", sport: navState.sport });
-    }
-  };
-
-  const handleBackToSportSelect = () => {
-    setNavState({ screen: "sport-select" });
-  };
-
-  // Legacy football navigation (for backward compatibility)
-  const handleSelectMatch = (matchId: string) => {
-    setNavState({ screen: "legacy-match-detail", matchId });
-  };
-
-  const handleBackToMatchList = () => {
-    setNavState({ screen: "legacy-match-list" });
-  };
-
-  const handleBackFromLegacy = () => {
-    setNavState({ screen: "sport-select" });
-  };
+  const openFeature = (sport: SportDefinition, feature: SportFeature) =>
+    setNav(feature === "standings" ? { screen: "standings", sport } : { screen: "games", sport, filter: feature });
 
   return (
     <SafeAreaView style={styles.root}>
       <StatusBar hidden />
-      
-      {navState.screen === "sport-select" && (
-        <SportSelectScreen 
-          onSportSelect={handleSportSelect}
-          onBack={() => {}} // No back button on home screen
-        />
+
+      {nav.screen === "sports" && <SportSelectScreen onSportSelect={(sport) => setNav({ screen: "features", sport })} />}
+
+      {nav.screen === "features" && (
+        <SportFeatureScreen sport={nav.sport} onSelect={(f) => openFeature(nav.sport, f)} onBack={() => setNav({ screen: "sports" })} />
       )}
-      
-      {navState.screen === "game-list" && (
+
+      {nav.screen === "games" && (
         <GameListScreen
-          sportId={navState.sport.id}
-          sportLabel={navState.sport.label}
-          onGameSelect={handleGameSelect}
-          onBack={handleBackToSportSelect}
+          sportId={nav.sport.id}
+          sportLabel={nav.sport.label}
+          initialFilter={nav.filter}
+          onGameSelect={(game) => setNav({ screen: "game", sport: nav.sport, filter: nav.filter, game })}
+          onBack={() => setNav({ screen: "features", sport: nav.sport })}
         />
       )}
-      
-      {navState.screen === "game-detail" && (
+
+      {nav.screen === "standings" && (
+        <StandingsScreen sportId={nav.sport.id} sportLabel={nav.sport.label} onBack={() => setNav({ screen: "features", sport: nav.sport })} />
+      )}
+
+      {nav.screen === "game" && (
         <GameScreen
-          sportId={navState.sport.id}
-          game={navState.game}
-          onBack={handleBackToGameList}
-        />
-      )}
-      
-      {navState.screen === "legacy-match-list" && (
-        <MatchListScreen
-          onSelectMatch={handleSelectMatch}
-          onBack={handleBackFromLegacy}
-        />
-      )}
-      
-      {navState.screen === "legacy-match-detail" && (
-        <MatchScreen
-          matchId={navState.matchId}
-          onBack={handleBackToMatchList}
+          sportId={nav.sport.id}
+          hasPredictions={nav.sport.hasPredictions}
+          game={nav.game}
+          onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
         />
       )}
     </SafeAreaView>

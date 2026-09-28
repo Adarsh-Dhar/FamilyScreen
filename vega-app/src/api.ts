@@ -1,13 +1,13 @@
 import { API_BASE_URL } from "./config";
 import type {
-  MatchesResponse,
-  MatchState,
   GamesResponse,
   GameState,
   SportsResponse,
   SportId,
   GameSummary,
   SportDefinition,
+  StandingRow,
+  ActiveLeague,
 } from "./types";
 
 export type { SportId, GameSummary, SportDefinition };
@@ -52,18 +52,10 @@ export function askGameQuestion(sportId: SportId, gameId: string, question: stri
   });
 }
 
-// Legacy football endpoints (for backward compatibility)
-export function getLiveMatches() {
-  return request<MatchesResponse>("/matches");
+export function getActiveLeagues(sportId: SportId) {
+  return request<{ leagues: ActiveLeague[] }>(`/${sportId}/leagues/active`);
 }
 
-export function getMatchState(matchId: string) {
-  return request<MatchState>(`/matches/${encodeURIComponent(matchId)}`);
-}
-
-export function askQuestion(matchId: string, question: string) {
-  return request<{ answer: string }>(`/matches/${encodeURIComponent(matchId)}/ask`, {
-    method: "POST",
-    body: JSON.stringify({ question }),
-  });
+export function getStandings(sportId: SportId, league: number, season: number | string) {
+  return request<{ rows: StandingRow[] }>(`/${sportId}/standings?league=${league}&season=${encodeURIComponent(String(season))}`);
 }

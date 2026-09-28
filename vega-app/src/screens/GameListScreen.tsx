@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { StyleSheet, Text, View, ScrollView, Pressable, ActivityIndicator, BackHandler } from "react-native";
+import { StyleSheet, Text, View, ScrollView, ActivityIndicator, BackHandler } from "react-native";
+import { Focusable } from "../components/Focusable";
 import { colors } from "../theme";
 import { getLiveGames, getPastGames, type SportId, type GameSummary } from "../api";
 
@@ -8,14 +9,15 @@ interface GameListScreenProps {
   sportLabel: string;
   onGameSelect: (game: GameSummary) => void;
   onBack: () => void;
+  initialFilter?: GameFilter;
 }
 
 type GameFilter = "live" | "past";
 
-export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBack }: GameListScreenProps) {
+export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBack, initialFilter = "live" }: GameListScreenProps) {
   const [games, setGames] = useState<GameSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<GameFilter>("live");
+  const [filter, setFilter] = useState<GameFilter>(initialFilter);
 
   useEffect(() => {
     loadGames();
@@ -59,30 +61,30 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        <Pressable style={styles.backButton} onPress={onBack}>
+        <Focusable style={styles.backButton} onPress={onBack}>
           <Text style={styles.backButtonText}>← Back</Text>
-        </Pressable>
+        </Focusable>
         <Text style={styles.headerTitle}>{sportLabel} Games</Text>
       </View>
 
       {/* Filter Buttons */}
       <View style={styles.filterContainer}>
-        <Pressable
+        <Focusable
           style={[styles.filterButton, filter === "live" && styles.filterButtonActive]}
           onPress={() => setFilter("live")}
         >
           <Text style={[styles.filterButtonText, filter === "live" && styles.filterButtonTextActive]}>
             Live
           </Text>
-        </Pressable>
-        <Pressable
+        </Focusable>
+        <Focusable
           style={[styles.filterButton, filter === "past" && styles.filterButtonActive]}
           onPress={() => setFilter("past")}
         >
           <Text style={[styles.filterButtonText, filter === "past" && styles.filterButtonTextActive]}>
             Past
           </Text>
-        </Pressable>
+        </Focusable>
       </View>
 
       {/* Games List */}
@@ -103,7 +105,7 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
           </View>
         ) : (
           games.map((game) => (
-            <Pressable
+            <Focusable
               key={game.gameId}
               style={styles.gameTile}
               onPress={() => onGameSelect(game)}
@@ -111,13 +113,7 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
               <View style={styles.gameHeader}>
                 <Text style={styles.competition}>{game.competition}</Text>
                 <Text style={styles.gameStatus}>
-                  {game.status === 'live' && game.elapsedMinutes > 0 
-                    ? `${game.elapsedMinutes}'` 
-                    : game.status === 'live' 
-                      ? 'Live' 
-                      : game.status === 'finished' 
-                        ? 'FT' 
-                        : 'NS'}
+                  {game.periodLabel}
                 </Text>
               </View>
               
@@ -136,7 +132,7 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
                   <Text style={styles.teamName}>{game.awayTeam}</Text>
                 </View>
               </View>
-            </Pressable>
+            </Focusable>
           ))
         )}
       </ScrollView>

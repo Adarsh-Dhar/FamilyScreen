@@ -11,6 +11,7 @@ export type DataTier =
 
 export type EndpointCategory =
   | "meta"
+  | "games"
   | "leagues"
   | "teams"
   | "venues"

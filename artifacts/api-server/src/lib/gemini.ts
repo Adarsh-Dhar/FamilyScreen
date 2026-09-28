@@ -6,6 +6,10 @@ export interface CommentaryContext {
   elapsedMinutes: number;
   recentEvents: string[];
   scoreChange?: boolean;
+  /** e.g. "basketball" — keeps the prompt from talking about goals/minutes in every sport. */
+  sport?: string;
+  /** "63'", "Q3", "P2", "IN5" … */
+  periodLabel?: string;
   probabilityChange?: { oldHome: number; newHome: number; oldAway: number; newAway: number };
 }
 
@@ -24,10 +28,10 @@ export async function generateCommentary(context: CommentaryContext): Promise<st
       ? `Win probability shifted from ${context.probabilityChange.oldHome}%/${context.probabilityChange.oldAway}% to ${context.probabilityChange.newHome}%/${context.probabilityChange.newAway}%`
       : "Win probability remains stable";
 
-    const prompt = `You are a sports commentator. Given this match context:
+    const prompt = `You are a ${context.sport ?? "sports"} commentator. Given this game context:
 - ${context.homeTeam} vs ${context.awayTeam}
 - Current score: ${context.homeScore}-${context.awayScore}
-- Minute: ${context.elapsedMinutes}'
+- Game clock: ${context.periodLabel ?? `${context.elapsedMinutes}'`}
 - Recent events: ${eventDescription}
 - ${probabilityContext}
 
@@ -97,7 +101,7 @@ function generateFallbackCommentary(context: CommentaryContext): string {
   return timePhrases[Math.floor(Math.random() * timePhrases.length)];
 }
 
-export async function answerQuestion(matchState: { events: Array<{ description: string }>; commentary: Array<{ text: string }> }, question: string): Promise<string> {
+export async function answerQuestion(matchState: { sportId?: string; homeTeam?: string; awayTeam?: string; homeScore?: number; awayScore?: number; periodLabel?: string; events: Array<{ description: string }>; commentary: Array<{ text: string }> }, question: string): Promise<string> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) {
     return "AI commentary unavailable. Check the match events for details.";
@@ -107,7 +111,8 @@ export async function answerQuestion(matchState: { events: Array<{ description: 
     const eventHistory = matchState.events.map(e => e.description).join(". ");
     const commentaryHistory = matchState.commentary.slice(-5).map(c => c.text).join(". ");
     
-    const prompt = `You are a sports analyst. Given this match information:
+    const prompt = `You are a ${matchState.sportId ?? "sports"} analyst. Given this game information:
+- Game: ${matchState.homeTeam ?? "Home"} ${matchState.homeScore ?? 0} - ${matchState.awayScore ?? 0} ${matchState.awayTeam ?? "Away"} (${matchState.periodLabel ?? "in progress"})
 - Event history: ${eventHistory || "No major events yet"}
 - Recent commentary: ${commentaryHistory || "No commentary yet"}
 

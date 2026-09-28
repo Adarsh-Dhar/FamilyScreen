@@ -30,7 +30,7 @@ export class QuotaManager {
   private load(dailyLimit: number): QuotaState {
     if (existsSync(this.filePath)) {
       try {
-        const raw = JSON.parse(readFileSync(filePath, "utf-8")) as QuotaState;
+        const raw = JSON.parse(readFileSync(this.filePath, "utf-8")) as QuotaState;
         if (raw.day === todayUtc()) {
           return { ...raw, dailyLimit };
         }
@@ -77,7 +77,7 @@ export class QuotaManager {
       return { allowed: false, reason: `Daily API-Sports quota exhausted for ${this.sportId}.`, remainingToday: 0 };
     }
 
-    if (!isLivePollCall && remaining <= LIVE_POLL_RESERVE && endpointKey !== "games.live") {
+    if (!isLivePollCall && remaining <= LIVE_POLL_RESERVE) {
       return {
         allowed: false,
         reason: `Only ${remaining} calls left today for ${this.sportId}; reserved for the live-games poll loop.`,
@@ -115,8 +115,10 @@ export function getQuotaManager(sportId?: string): QuotaManager {
   if (existingQuota) return existingQuota;
 
   const limit = Number(process.env["API_SPORTS_DAILY_LIMIT"] ?? process.env["API_FOOTBALL_DAILY_LIMIT"] ?? DEFAULT_DAILY_LIMIT);
+  // One file per sport: a shared file made every sport overwrite the others' counters.
+  const dataDir = process.env["SPORTS_DATA_DIR"] ?? join(process.cwd(), "data");
   const quota = new QuotaManager(
-    process.env["SPORTS_QUOTA_FILE"] ?? join(process.cwd(), "data", "sports-quota.json"),
+    join(dataDir, `quota-${quotaKey}.json`),
     quotaKey,
     Number.isFinite(limit) && limit > 0 ? limit : DEFAULT_DAILY_LIMIT,
   );

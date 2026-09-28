@@ -78,7 +78,9 @@ export function getSportsCache(sportId?: string): TtlCache {
   const existingCache = sharedCaches.get(cacheKey);
   if (existingCache) return existingCache;
 
-  const path = process.env["SPORTS_CACHE_FILE"] ?? join(process.cwd(), "data", "sports-cache.json");
+  // One file per sport so caches don't overwrite each other on persist().
+  const dataDir = process.env["SPORTS_DATA_DIR"] ?? join(process.cwd(), "data");
+  const path = join(dataDir, `cache-${cacheKey}.json`);
   const cache = new TtlCache(path);
   sharedCaches.set(cacheKey, cache);
   return cache;
