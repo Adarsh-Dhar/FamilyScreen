@@ -67,6 +67,8 @@ export interface GameState {
   aiPredictionStatus: "loading" | "ready" | "unavailable";
   currentWinProbability: { home: number; away: number; draw: number };
   winProbabilityHistory: Array<{ home: number; away: number; draw: number; timestamp: string }>;
+  /** Per-period scores: quarters, periods, halves, sets, innings */
+  lines?: Array<{ label: string; home: number; away: number }>;
 }
 
 export interface GameSummary {
@@ -84,6 +86,8 @@ export interface GameSummary {
   elapsedMinutes: number;
   periodLabel: string;
   status: "live" | "finished" | "scheduled";
+  /** Per-period scores: quarters, periods, halves, sets, innings */
+  lines?: Array<{ label: string; home: number; away: number }>;
 }
 
 // Alias used by components/Tile.tsx (for backward compatibility)
@@ -127,7 +131,7 @@ export interface CommentaryFrame {
   commentary: CommentaryEntry;
 }
 
-export type SportFeature = "live" | "past" | "standings";
+export type SportFeature = "live" | "past" | "standings" | "teams" | "headtohead";
 
 export interface StandingRow {
   position: number;
@@ -144,4 +148,10 @@ export interface ActiveLeague {
   leagueId: number;
   name: string;
   season: number | string;
+}
+
+export interface Team {
+  id: number;
+  name: string;
+  logo?: string;
 }

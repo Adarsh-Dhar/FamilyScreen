@@ -18,6 +18,8 @@ export type GameSummary = {
   /** "63'", "Q3", "P2", "IN5", "HT", "FT", "NS" — what the UI prints next to the score. */
   periodLabel: string;
   status: GameStatus;
+  /** Per-period scores: quarters (basketball/NFL/AFL), periods (hockey), halves (handball/rugby), sets (volleyball), innings (baseball) */
+  lines?: Array<{ label: string; home: number; away: number }>;
 };
 
 type RawScore = number | null | undefined | Record<string, unknown>;
@@ -40,6 +42,69 @@ export function normalizeScore(raw: RawScore): number {
 
 const num = (v: unknown, fallback = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : fallback);
 
+/**
+ * Extract per-period scores from raw API response. Returns array of {label, home, away} lines.
+ * Different sports use different period structures:
+ * - Basketball/NFL/AFL: quarter_1, quarter_2, quarter_3, quarter_4, over_time
+ * - Hockey: period_1, period_2, period_3, over_time
+ * - Handball/Rugby: half_1, half_2, over_time
+ * - Volleyball: set_1, set_2, set_3, set_4, set_5
+ * - Baseball: inning_1, inning_2, ..., inning_9
+ */
+function extractScoreLines(sportId: SportId, homeScore: RawScore, awayScore: RawScore): Array<{ label: string; home: number; away: number }> {
+  if (typeof homeScore !== "object" || homeScore === null) return [];
+  if (typeof awayScore !== "object" || awayScore === null) return [];
+
+  const home = homeScore as Record<string, unknown>;
+  const away = awayScore as Record<string, unknown>;
+  const lines: Array<{ label: string; home: number; away: number }> = [];
+
+  const addLine = (label: string, key: string) => {
+    const h = num(home[key]);
+    const a = num(away[key]);
+    if (h > 0 || a > 0) lines.push({ label, home: h, away: a });
+  };
+
+  switch (sportId) {
+    case "basketball":
+    case "nba":
+    case "nfl":
+    case "afl":
+      addLine("Q1", "quarter_1");
+      addLine("Q2", "quarter_2");
+      addLine("Q3", "quarter_3");
+      addLine("Q4", "quarter_4");
+      addLine("OT", "over_time");
+      break;
+    case "hockey":
+      addLine("P1", "period_1");
+      addLine("P2", "period_2");
+      addLine("P3", "period_3");
+      addLine("OT", "over_time");
+      break;
+    case "handball":
+    case "rugby":
+      addLine("H1", "half_1");
+      addLine("H2", "half_2");
+      addLine("OT", "over_time");
+      break;
+    case "volleyball":
+      addLine("S1", "set_1");
+      addLine("S2", "set_2");
+      addLine("S3", "set_3");
+      addLine("S4", "set_4");
+      addLine("S5", "set_5");
+      break;
+    case "baseball":
+      for (let i = 1; i <= 9; i++) {
+        addLine(`I${i}`, `inning_${i}`);
+      }
+      break;
+  }
+
+  return lines;
+}
+
 function build(sportId: SportId, p: {
   id: unknown; home: any; away: any; leagueId: unknown; season: unknown; competition: unknown;
   homeScore: RawScore; awayScore: RawScore; statusShort: any; statusLong?: any; elapsed?: unknown;
@@ -47,6 +112,7 @@ function build(sportId: SportId, p: {
   const status = mapStatus(p.statusShort, p.statusLong);
   if (!status || p.id === undefined || p.id === null) return null; // no stable id → skip, never invent one
   const elapsed = typeof p.elapsed === "number" ? p.elapsed : 0;
+  const lines = extractScoreLines(sportId, p.homeScore, p.awayScore);
   return {
     gameId: String(p.id),
     sportId,
@@ -62,6 +128,7 @@ function build(sportId: SportId, p: {
     elapsedMinutes: elapsed,
     periodLabel: periodLabel(status, p.statusShort, elapsed),
     status,
+    lines: lines.length > 0 ? lines : undefined,
   };
 }
 
@@ -91,7 +158,8 @@ function mapGeneric(sportId: SportId, item: any): GameSummary | null {
     id: item.id ?? item.game?.id, home: item.teams?.home, away: item.teams?.away,
     leagueId: item.league?.id, season: item.league?.season ?? item.season, competition: item.league?.name,
     homeScore: item.scores?.home, awayScore: item.scores?.away,
-    statusShort: item.status?.short, statusLong: item.status?.long,
+    // NFL nests status (and the id) under `game`; every other generic sport has them at the top level.
+    statusShort: (item.status ?? item.game?.status)?.short, statusLong: (item.status ?? item.game?.status)?.long,
   });
 }
 

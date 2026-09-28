@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { StyleSheet, Text, View, ScrollView, BackHandler } from "react-native";
 import { Focusable } from "../components/Focusable";
+import { LineScore } from "../components/LineScore";
 import { colors } from "../theme";
 import { getGameState } from "../api";
 import type { SportId, GameState, GameSummary, CommentaryEntry } from "../types";
@@ -107,6 +108,8 @@ export default function GameScreen({ sportId, hasPredictions, game, onBack }: Ga
         </View>
         <Text style={styles.teamName}>{gameState.awayTeam}</Text>
       </View>
+
+      {gameState.lines && gameState.lines.length > 0 && <LineScore lines={gameState.lines} />}
 
       {showPredictions && (
         <View style={styles.probabilitySection}>

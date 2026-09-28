@@ -20,6 +20,8 @@ export function mapStatus(short: string | number | null | undefined, long?: stri
     if (short === 3) return "finished";
     return null;
   }
+  // NFL overtime finals arrive as { short: null, long: "Final/OT" } — fall back to the long text.
+  if (!short && long && /^(final|finished|game finished)/i.test(long)) return "finished";
   const code = short ?? long ?? "";
   if (!code) return null;
   if (DROPPED.has(code) || (long && DROPPED.has(long))) return null;

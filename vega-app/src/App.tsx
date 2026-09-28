@@ -5,22 +5,27 @@ import SportSelectScreen from "./screens/SportSelectScreen";
 import SportFeatureScreen from "./screens/SportFeatureScreen";
 import GameListScreen from "./screens/GameListScreen";
 import StandingsScreen from "./screens/StandingsScreen";
+import TeamsScreen from "./screens/TeamsScreen";
 import GameScreen from "./screens/MatchScreen";
 import type { GameSummary, SportDefinition, SportFeature } from "./types";
 
-// Sport select → features → (game list → game detail | standings)
+// Sport select → features → (game list → game detail | standings | teams)
 type Nav =
   | { screen: "sports" }
   | { screen: "features"; sport: SportDefinition }
   | { screen: "games"; sport: SportDefinition; filter: "live" | "past" }
   | { screen: "standings"; sport: SportDefinition }
+  | { screen: "teams"; sport: SportDefinition }
   | { screen: "game"; sport: SportDefinition; filter: "live" | "past"; game: GameSummary };
 
 export default function App() {
   const [nav, setNav] = useState<Nav>({ screen: "sports" });
 
-  const openFeature = (sport: SportDefinition, feature: SportFeature) =>
-    setNav(feature === "standings" ? { screen: "standings", sport } : { screen: "games", sport, filter: feature });
+  const openFeature = (sport: SportDefinition, feature: SportFeature) => {
+    if (feature === "standings") return setNav({ screen: "standings", sport });
+    if (feature === "teams") return setNav({ screen: "teams", sport });
+    return setNav({ screen: "games", sport, filter: feature });
+  };
 
   return (
     <SafeAreaView style={styles.root}>
@@ -44,6 +49,10 @@ export default function App() {
 
       {nav.screen === "standings" && (
         <StandingsScreen sportId={nav.sport.id} sportLabel={nav.sport.label} onBack={() => setNav({ screen: "features", sport: nav.sport })} />
+      )}
+
+      {nav.screen === "teams" && (
+        <TeamsScreen sportId={nav.sport.id} sportLabel={nav.sport.label} onBack={() => setNav({ screen: "features", sport: nav.sport })} />
       )}
 
       {nav.screen === "game" && (

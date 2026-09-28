@@ -8,6 +8,7 @@ import type {
   SportDefinition,
   StandingRow,
   ActiveLeague,
+  Team,
 } from "./types";
 
 export type { SportId, GameSummary, SportDefinition };
@@ -58,4 +59,12 @@ export function getActiveLeagues(sportId: SportId) {
 
 export function getStandings(sportId: SportId, league: number, season: number | string) {
   return request<{ rows: StandingRow[] }>(`/${sportId}/standings?league=${league}&season=${encodeURIComponent(String(season))}`);
+}
+
+export function getTeams(sportId: SportId, league: number, season: number | string) {
+  return request<{ teams: Team[] }>(`/${sportId}/teams?league=${league}&season=${encodeURIComponent(String(season))}`);
+}
+
+export function getHeadToHead(sportId: SportId, gameId: string) {
+  return request<{ games: unknown[] }>(`/${sportId}/games/${encodeURIComponent(gameId)}/h2h`);
 }

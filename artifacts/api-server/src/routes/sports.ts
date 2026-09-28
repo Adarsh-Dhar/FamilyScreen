@@ -4,6 +4,8 @@ import { getAllSports, SPORTS_REGISTRY, type SportId } from "../lib/sports/regis
 import { fetchGameById, getGameState, getLiveGames, getPastGames, touchSport } from "../lib/sports-data";
 import { getStandings, getActiveLeagues } from "../lib/sports-standings";
 import { answerQuestion } from "../lib/gemini";
+import { guardedCall } from "../lib/sports/core/guarded-call";
+import { getSportEndpoint } from "../lib/sports/endpoints";
 
 const router: IRouter = Router();
 
@@ -85,5 +87,105 @@ router.get("/:sport/standings", async (req, res) => {
   }
   res.json({ rows: await getStandings(sport, q.data.league, q.data.season) });
 });
+
+/** Teams in a league/season. Uses sport-specific endpoint keys (teams for football, games with league filter for others). */
+router.get("/:sport/teams", async (req, res) => {
+  const sport = sportOr400(req.params.sport, res);
+  if (!sport) return;
+  const q = z.object({ league: z.coerce.number().int().positive(), season: z.string().min(1) }).safeParse(req.query);
+  if (!q.success) {
+    res.status(400).json({ error: "league and season are required" });
+    return;
+  }
+
+  try {
+    let result;
+    if (sport === "football") {
+      const def = getSportEndpoint(sport, "teams");
+      result = await guardedCall<unknown[]>(sport, "teams", def.path, def, { league: q.data.league, season: q.data.season });
+    } else {
+      // For other sports, use games endpoint with league/season filter to get unique teams
+      const def = getSportEndpoint(sport, "games");
+      result = await guardedCall<unknown[]>(sport, "games", def.path, def, { league: q.data.league, season: q.data.season });
+    }
+
+    if (!result.ok || !result.data) {
+      res.status(500).json({ error: "Failed to fetch teams" });
+      return;
+    }
+
+    // Extract unique teams from the response
+    const teams = sport === "football" 
+      ? result.data 
+      : extractUniqueTeams(result.data);
+    
+    res.json({ teams });
+  } catch (error) {
+    console.error("Failed to fetch teams:", error);
+    res.status(500).json({ error: "Failed to fetch teams" });
+  }
+});
+
+/** Head-to-head history between two teams. Uses headtohead endpoint for football, games filter for others. */
+router.get("/:sport/games/:id/h2h", async (req, res) => {
+  const sport = sportOr400(req.params.sport, res);
+  if (!sport) return;
+  const id = String(req.params.id);
+
+  try {
+    let result;
+    if (sport === "football") {
+      const def = getSportEndpoint(sport, "fixtures.headtohead");
+      const gameId = Number(id);
+      // First get the game to find the team IDs
+      const gameState = getGameState(sport, id) ?? (await fetchGameById(sport, id));
+      if (!gameState) {
+        res.status(404).json({ error: "Game not found" });
+        return;
+      }
+      result = await guardedCall<unknown[]>(sport, "fixtures.headtohead", def.path, def, { 
+        h2h: `${gameState.homeTeamId}-${gameState.awayTeamId}` 
+      });
+    } else {
+      // For other sports, fetch past games between these teams
+      const gameState = getGameState(sport, id) ?? (await fetchGameById(sport, id));
+      if (!gameState) {
+        res.status(404).json({ error: "Game not found" });
+        return;
+      }
+      const def = getSportEndpoint(sport, "games");
+      result = await guardedCall<unknown[]>(sport, "games", def.path, def, { 
+        league: gameState.leagueId, 
+        season: gameState.season,
+        team: gameState.homeTeamId, // API-Sports might have team filtering
+      });
+    }
+
+    if (!result.ok || !result.data) {
+      res.status(500).json({ error: "Failed to fetch head-to-head" });
+      return;
+    }
+
+    res.json({ games: result.data });
+  } catch (error) {
+    console.error("Failed to fetch head-to-head:", error);
+    res.status(500).json({ error: "Failed to fetch head-to-head" });
+  }
+});
+
+/** Extract unique teams from games response for non-football sports */
+function extractUniqueTeams(games: unknown[]): Array<{ id: number; name: string }> {
+  const teamMap = new Map<number, string>();
+  for (const game of games) {
+    const item = game as any;
+    if (item.teams?.home?.id && item.teams.home.name) {
+      teamMap.set(item.teams.home.id, item.teams.home.name);
+    }
+    if (item.teams?.away?.id && item.teams.away.name) {
+      teamMap.set(item.teams.away.id, item.teams.away.name);
+    }
+  }
+  return Array.from(teamMap.entries()).map(([id, name]) => ({ id, name }));
+}
 
 export default router;

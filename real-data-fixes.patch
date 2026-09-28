@@ -1,0 +1,27 @@
+diff --git a/artifacts/api-server/src/lib/sports/mappers.ts b/artifacts/api-server/src/lib/sports/mappers.ts
+index 7b0ecff..7fedaa3 100644
+--- a/artifacts/api-server/src/lib/sports/mappers.ts
++++ b/artifacts/api-server/src/lib/sports/mappers.ts
+@@ -91,7 +91,8 @@ function mapGeneric(sportId: SportId, item: any): GameSummary | null {
+     id: item.id ?? item.game?.id, home: item.teams?.home, away: item.teams?.away,
+     leagueId: item.league?.id, season: item.league?.season ?? item.season, competition: item.league?.name,
+     homeScore: item.scores?.home, awayScore: item.scores?.away,
+-    statusShort: item.status?.short, statusLong: item.status?.long,
++    // NFL nests status (and the id) under `game`; every other generic sport has them at the top level.
++    statusShort: (item.status ?? item.game?.status)?.short, statusLong: (item.status ?? item.game?.status)?.long,
+   });
+ }
+ 
+diff --git a/artifacts/api-server/src/lib/sports/status.ts b/artifacts/api-server/src/lib/sports/status.ts
+index f48f9ae..5531931 100644
+--- a/artifacts/api-server/src/lib/sports/status.ts
++++ b/artifacts/api-server/src/lib/sports/status.ts
+@@ -20,6 +20,8 @@ export function mapStatus(short: string | number | null | undefined, long?: stri
+     if (short === 3) return "finished";
+     return null;
+   }
++  // NFL overtime finals arrive as { short: null, long: "Final/OT" } — fall back to the long text.
++  if (!short && long && /^(final|finished|game finished)/i.test(long)) return "finished";
+   const code = short ?? long ?? "";
+   if (!code) return null;
+   if (DROPPED.has(code) || (long && DROPPED.has(long))) return null;

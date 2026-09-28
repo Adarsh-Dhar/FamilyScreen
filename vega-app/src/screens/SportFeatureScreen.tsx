@@ -19,6 +19,9 @@ export function featuresFor(sport: SportDefinition): Array<{ id: SportFeature; l
   if (sport.hasStandings && sport.kind === "team-game") {
     items.push({ id: "standings", label: "Standings", hint: "League tables" });
   }
+  if (sport.hasTeams && sport.kind === "team-game") {
+    items.push({ id: "teams", label: "Teams", hint: "League rosters" });
+  }
   return items;
 }
 

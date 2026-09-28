@@ -126,6 +126,11 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
                   <Text style={styles.score}>
                     {game.homeScore} - {game.awayScore}
                   </Text>
+                  {game.lines && game.lines.length > 0 && (
+                    <Text style={styles.lineScore}>
+                      {game.lines.map(l => `${l.label}:${l.home}-${l.away}`).join(' ')}
+                    </Text>
+                  )}
                 </View>
                 
                 <View style={styles.teamSection}>
@@ -262,5 +267,12 @@ const styles = StyleSheet.create({
     color: "#FF6200",
     fontSize: 32,
     fontWeight: "bold",
+    textAlign: "center",
+  },
+  lineScore: {
+    color: "#888",
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 4,
   },
 });
