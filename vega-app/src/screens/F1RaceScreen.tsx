@@ -29,17 +29,7 @@ export default function F1RaceScreen({ game, onBack }: Props) {
   async function loadRaceData() {
     try {
       const response = await getF1RaceResults(game.gameId);
-      // TODO: Parse the actual API response into F1RaceData format
-      // For now, create mock data based on the game
-      const mockData: F1RaceData = {
-        circuit: game.awayTeam,
-        laps: 0,
-        winner: undefined,
-        fastestLap: undefined,
-        podium: [],
-        classification: [],
-      };
-      setRaceData(mockData);
+      setRaceData(response);
     } catch (error) {
       console.error("Failed to load race data:", error);
     } finally {

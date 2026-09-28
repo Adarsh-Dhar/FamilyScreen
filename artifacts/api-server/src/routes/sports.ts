@@ -163,6 +163,9 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
 
   try {
     let result;
+    let homeTeamId: number;
+    let awayTeamId: number;
+
     if (sport === "football") {
       const def = getSportEndpoint(sport, "fixtures.headtohead");
       const gameId = Number(id);
@@ -172,8 +175,10 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
         res.status(404).json({ error: "Game not found" });
         return;
       }
+      homeTeamId = gameState.homeTeamId;
+      awayTeamId = gameState.awayTeamId;
       result = await guardedCall<unknown[]>(sport, "fixtures.headtohead", def.path, def, { 
-        h2h: `${gameState.homeTeamId}-${gameState.awayTeamId}` 
+        h2h: `${homeTeamId}-${awayTeamId}` 
       });
     } else {
       // For other sports, fetch past games between these teams
@@ -182,6 +187,8 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
         res.status(404).json({ error: "Game not found" });
         return;
       }
+      homeTeamId = gameState.homeTeamId;
+      awayTeamId = gameState.awayTeamId;
       const def = getSportEndpoint(sport, "games");
       result = await guardedCall<unknown[]>(sport, "games", def.path, def, { 
         league: gameState.leagueId, 
@@ -195,7 +202,23 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
       return;
     }
 
-    res.json({ games: result.data });
+    // Map the raw API data to GameSummary format
+    const { mapGame } = await import("../lib/sports/mappers");
+    const mappedGames = (result.data as any[])
+      .map((item) => mapGame(sport, item))
+      .filter((game): game is NonNullable<typeof game> => game !== null);
+
+    // For non-football sports, filter to games between the two teams
+    const filteredGames = sport === "football" 
+      ? mappedGames 
+      : mappedGames.filter((game) => {
+          const teamsMatch = 
+            (game.homeTeamId === homeTeamId && game.awayTeamId === awayTeamId) ||
+            (game.homeTeamId === awayTeamId && game.awayTeamId === homeTeamId);
+          return teamsMatch;
+        });
+
+    res.json({ games: filteredGames });
   } catch (error) {
     console.error("Failed to fetch head-to-head:", error);
     res.status(500).json({ error: "Failed to fetch head-to-head" });
@@ -235,16 +258,57 @@ router.get("/formula1/races/:id/results", async (req, res) => {
   const raceId = String(req.params.id);
 
   try {
-    // Use the laps endpoint which contains race results/classification
-    const def = getSportEndpoint("formula1", "laps");
-    const result = await guardedCall<unknown[]>(sport, "laps", def.path, def, { race: raceId });
+    // Use the rankings/races endpoint for final classification
+    const rankingsDef = getSportEndpoint("formula1", "rankings.races");
+    const rankingsResult = await guardedCall<unknown[]>(sport, "rankings.races", rankingsDef.path, rankingsDef, { race: raceId });
 
-    if (!result.ok || !result.data) {
+    // Use the rankings/fastestlaps endpoint for fastest lap info
+    const fastestLapsDef = getSportEndpoint("formula1", "rankings.fastestlaps");
+    const fastestLapsResult = await guardedCall<unknown[]>(sport, "rankings.fastestlaps", fastestLapsDef.path, fastestLapsDef, { race: raceId });
+
+    if (!rankingsResult.ok || !rankingsResult.data) {
       res.status(500).json({ error: "Failed to fetch race results" });
       return;
     }
 
-    res.json({ results: result.data });
+    // Parse the rankings data into our F1RaceData format
+    const classification = (rankingsResult.data as any[]).map((item) => ({
+      position: item.position,
+      driver: item.driver?.name || "Unknown",
+      team: item.team?.name || "Unknown",
+      time: item.time || "DNF",
+      points: undefined, // F1 points are calculated separately
+    }));
+
+    // Extract podium (top 3)
+    const podium = classification.slice(0, 3);
+
+    // Extract winner (position 1)
+    const winner = classification.length > 0 && classification[0].position === 1 ? classification[0].driver : undefined;
+
+    // Extract fastest lap from fastest laps data
+    let fastestLap;
+    if (fastestLapsResult.ok && fastestLapsResult.data && (fastestLapsResult.data as any[]).length > 0) {
+      const fastest = (fastestLapsResult.data as any[])[0];
+      fastestLap = {
+        driver: fastest.driver?.name || "Unknown",
+        team: fastest.team?.name || "Unknown",
+        time: fastest.time || "Unknown",
+        lap: fastest.lap || 0,
+      };
+    }
+
+    // Get total laps from the first entry
+    const laps = (rankingsResult.data as any[]).length > 0 ? (rankingsResult.data as any[])[0].laps || 0 : 0;
+
+    res.json({
+      circuit: "Grand Prix", // This would come from the race details endpoint
+      laps,
+      winner,
+      fastestLap,
+      podium,
+      classification,
+    });
   } catch (error) {
     console.error("Failed to fetch F1 race results:", error);
     res.status(500).json({ error: "Failed to fetch race results" });

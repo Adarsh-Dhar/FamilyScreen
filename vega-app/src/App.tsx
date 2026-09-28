@@ -28,7 +28,8 @@ export default function App() {
   const openFeature = (sport: SportDefinition, feature: SportFeature) => {
     if (feature === "standings") return setNav({ screen: "standings", sport });
     if (feature === "teams") return setNav({ screen: "teams", sport });
-    return setNav({ screen: "games", sport, filter: feature });
+    if (feature === "headtohead") return; // H2H is only accessible from within a game screen
+    return setNav({ screen: "games", sport, filter: feature as "live" | "past" });
   };
 
   return (
@@ -76,7 +77,7 @@ export default function App() {
             hasPredictions={nav.sport.hasPredictions}
             game={nav.game}
             onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
-            onH2H={() => setNav({ screen: "h2h", sport: nav.sport, game: nav.game })}
+            onH2H={() => setNav({ screen: "h2h", sport: nav.sport, filter: nav.filter, game: nav.game })}
           />
         )
       )}

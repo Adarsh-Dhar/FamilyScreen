@@ -139,7 +139,7 @@ export interface CommentaryFrame {
   commentary: CommentaryEntry;
 }
 
-export type SportFeature = "live" | "past" | "standings" | "teams" | "headtohead";
+export type SportFeature = "live" | "past" | "standings" | "teams";
 
 export interface StandingRow {
   position: number;

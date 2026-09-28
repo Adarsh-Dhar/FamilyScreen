@@ -75,5 +75,5 @@ export function getHeadToHead(sportId: SportId, gameId: string) {
 }
 
 export function getF1RaceResults(raceId: string) {
-  return request<{ results: unknown[] }>(`/formula1/races/${encodeURIComponent(raceId)}/results`);
+  return request<F1RaceData>(`/formula1/races/${encodeURIComponent(raceId)}/results`);
 }
