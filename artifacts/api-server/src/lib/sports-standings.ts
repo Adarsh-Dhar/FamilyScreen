@@ -63,7 +63,7 @@ function collectRows(node: unknown, out: StandingRow[], currentGroup: string = "
       drawn,
       lost,
       points,
-      group: row.group?.name ?? currentGroup ?? undefined,
+      group: row.group?.name || currentGroup || undefined,
       winPct: played > 0 ? (won / played) * 100 : 0,
     });
     return;
@@ -84,10 +84,18 @@ export async function getStandings(sportId: SportId, league: number, season: str
     if (!existing) {
       teamMap.set(row.teamId, row);
     } else {
-      // Prefer conference groups over other groups
+      // Prefer conference groups over other groups, but be smarter about it
+      // For sports like NFL and hockey, "Conference" might be part of the actual conference name
       const isConference = row.group?.toLowerCase().includes("conference");
       const existingIsConference = existing.group?.toLowerCase().includes("conference");
-      if (isConference && !existingIsConference) {
+      
+      // If both have conference in the name, prefer the one that looks more like a division
+      if (isConference && existingIsConference) {
+        // Prefer more specific names (e.g., "Eastern Conference" over "Conference")
+        if (row.group && row.group.length > (existing.group?.length || 0)) {
+          teamMap.set(row.teamId, row);
+        }
+      } else if (isConference && !existingIsConference) {
         teamMap.set(row.teamId, row);
       }
     }

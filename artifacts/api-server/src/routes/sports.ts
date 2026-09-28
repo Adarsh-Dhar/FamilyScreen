@@ -6,6 +6,7 @@ import { getStandings, getActiveLeagues } from "../lib/sports-standings";
 import { answerQuestion } from "../lib/gemini";
 import { guardedCall } from "../lib/sports/core/guarded-call";
 import { getSportEndpoint } from "../lib/sports/endpoints";
+import { mapGame } from "../lib/sports/mappers";
 
 const router: IRouter = Router();
 
@@ -155,45 +156,44 @@ router.get("/:sport/teams", async (req, res) => {
   }
 });
 
-/** Head-to-head history between two teams. Uses headtohead endpoint for football, games filter for others. */
+/** Head-to-head history between two teams. Uses dedicated h2h endpoint when available. */
 router.get("/:sport/games/:id/h2h", async (req, res) => {
   const sport = sportOr400(req.params.sport, res);
   if (!sport) return;
   const id = String(req.params.id);
 
   try {
-    let result;
-    let homeTeamId: number;
-    let awayTeamId: number;
+    // First get the game to find the team IDs
+    const gameState = getGameState(sport, id) ?? (await fetchGameById(sport, id));
+    if (!gameState) {
+      res.status(404).json({ error: "Game not found" });
+      return;
+    }
 
-    if (sport === "football") {
-      const def = getSportEndpoint(sport, "fixtures.headtohead");
-      const gameId = Number(id);
-      // First get the game to find the team IDs
-      const gameState = getGameState(sport, id) ?? (await fetchGameById(sport, id));
-      if (!gameState) {
-        res.status(404).json({ error: "Game not found" });
-        return;
-      }
-      homeTeamId = gameState.homeTeamId;
-      awayTeamId = gameState.awayTeamId;
-      result = await guardedCall<unknown[]>(sport, "fixtures.headtohead", def.path, def, { 
-        h2h: `${homeTeamId}-${awayTeamId}` 
+    const homeTeamId = gameState.homeTeamId;
+    const awayTeamId = gameState.awayTeamId;
+
+    // Sports with dedicated h2h endpoint: football, afl, baseball, basketball, handball, hockey, nba, nfl, rugby, volleyball
+    const sportsWithH2hEndpoint = new Set<SportId>([
+      "football", "afl", "baseball", "basketball", "handball", "hockey", "nba", "nfl", "rugby", "volleyball"
+    ]);
+
+    let result;
+    if (sportsWithH2hEndpoint.has(sport)) {
+      const endpointKey = sport === "football" ? "fixtures.headtohead" : "games.h2h";
+      const def = getSportEndpoint(sport, endpointKey);
+      result = await guardedCall<unknown[]>(sport, endpointKey, def.path, def, { 
+        h2h: `${homeTeamId}-${awayTeamId}`,
+        league: gameState.leagueId,
+        season: gameState.season,
       });
     } else {
-      // For other sports, fetch past games between these teams
-      const gameState = getGameState(sport, id) ?? (await fetchGameById(sport, id));
-      if (!gameState) {
-        res.status(404).json({ error: "Game not found" });
-        return;
-      }
-      homeTeamId = gameState.homeTeamId;
-      awayTeamId = gameState.awayTeamId;
+      // Fallback for sports without h2h endpoint: fetch all games for home team in league/season
       const def = getSportEndpoint(sport, "games");
       result = await guardedCall<unknown[]>(sport, "games", def.path, def, { 
         league: gameState.leagueId, 
         season: gameState.season,
-        team: gameState.homeTeamId, // API-Sports might have team filtering
+        team: homeTeamId,
       });
     }
 
@@ -203,14 +203,13 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
     }
 
     // Map the raw API data to GameSummary format
-    const { mapGame } = await import("../lib/sports/mappers");
     const mappedGames = (result.data as any[])
       .map((item) => mapGame(sport, item))
       .filter((game): game is NonNullable<typeof game> => game !== null);
 
-    // For non-football sports, filter to games between the two teams
-    const filteredGames = sport === "football" 
-      ? mappedGames 
+    // For sports without dedicated h2h endpoint, filter to games between the two teams
+    const filteredGames = sportsWithH2hEndpoint.has(sport)
+      ? mappedGames
       : mappedGames.filter((game) => {
           const teamsMatch = 
             (game.homeTeamId === homeTeamId && game.awayTeamId === awayTeamId) ||
@@ -258,6 +257,10 @@ router.get("/formula1/races/:id/results", async (req, res) => {
   const raceId = String(req.params.id);
 
   try {
+    // Fetch race details to get circuit name
+    const racesDef = getSportEndpoint("formula1", "races");
+    const racesResult = await guardedCall<unknown[]>(sport, "races", racesDef.path, racesDef, { id: raceId });
+
     // Use the rankings/races endpoint for final classification
     const rankingsDef = getSportEndpoint("formula1", "rankings.races");
     const rankingsResult = await guardedCall<unknown[]>(sport, "rankings.races", rankingsDef.path, rankingsDef, { race: raceId });
@@ -271,13 +274,25 @@ router.get("/formula1/races/:id/results", async (req, res) => {
       return;
     }
 
-    // Parse the rankings data into our F1RaceData format
+    // Extract circuit name from race details
+    let circuitName = "Grand Prix";
+    if (racesResult.ok && racesResult.data && (racesResult.data as any[]).length > 0) {
+      const race = (racesResult.data as any[])[0];
+      circuitName = race.circuit?.name || race.competition?.name || "Grand Prix";
+    }
+
+    // Log first row for debugging
+    if ((rankingsResult.data as any[]).length > 0) {
+      console.warn("F1 rankings sample:", JSON.stringify((rankingsResult.data as any[])[0]));
+    }
+
+    // Parse the rankings data into our F1RaceData format with robust optional chaining
     const classification = (rankingsResult.data as any[]).map((item) => ({
-      position: item.position,
-      driver: item.driver?.name || "Unknown",
-      team: item.team?.name || "Unknown",
-      time: item.time || "DNF",
-      points: undefined, // F1 points are calculated separately
+      position: item.position ?? 0,
+      driver: item.driver?.name ?? item.driver ?? "Unknown",
+      team: item.team?.name ?? item.team ?? "Unknown",
+      time: item.time ?? item.gap ?? (item.position === 0 ? "DNF" : "Unknown"),
+      points: calculateF1Points(item.position),
     }));
 
     // Extract podium (top 3)
@@ -290,19 +305,22 @@ router.get("/formula1/races/:id/results", async (req, res) => {
     let fastestLap;
     if (fastestLapsResult.ok && fastestLapsResult.data && (fastestLapsResult.data as any[]).length > 0) {
       const fastest = (fastestLapsResult.data as any[])[0];
+      console.warn("F1 fastest lap sample:", JSON.stringify(fastest));
       fastestLap = {
-        driver: fastest.driver?.name || "Unknown",
-        team: fastest.team?.name || "Unknown",
-        time: fastest.time || "Unknown",
-        lap: fastest.lap || 0,
+        driver: fastest.driver?.name ?? fastest.driver ?? "Unknown",
+        team: fastest.team?.name ?? fastest.team ?? "Unknown",
+        time: fastest.time ?? "Unknown",
+        lap: fastest.lap ?? 0,
       };
     }
 
-    // Get total laps from the first entry
-    const laps = (rankingsResult.data as any[]).length > 0 ? (rankingsResult.data as any[])[0].laps || 0 : 0;
+    // Get total laps from the first entry with fallback
+    const laps = (rankingsResult.data as any[]).length > 0 
+      ? ((rankingsResult.data as any[])[0].laps?.total ?? (rankingsResult.data as any[])[0].laps ?? 0) 
+      : 0;
 
     res.json({
-      circuit: "Grand Prix", // This would come from the race details endpoint
+      circuit: circuitName,
       laps,
       winner,
       fastestLap,
@@ -314,5 +332,22 @@ router.get("/formula1/races/:id/results", async (req, res) => {
     res.status(500).json({ error: "Failed to fetch race results" });
   }
 });
+
+/** Calculate F1 points based on finishing position */
+function calculateF1Points(position: number): number | undefined {
+  const pointsTable: Record<number, number> = {
+    1: 25,
+    2: 18,
+    3: 15,
+    4: 12,
+    5: 10,
+    6: 8,
+    7: 6,
+    8: 4,
+    9: 2,
+    10: 1,
+  };
+  return pointsTable[position] ?? undefined;
+}
 
 export default router;

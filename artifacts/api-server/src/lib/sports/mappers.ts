@@ -174,7 +174,7 @@ function mapF1(item: any): GameSummary | null {
   if (!status) return null;
   return {
     gameId: String(item.id), sportId: "formula1",
-    homeTeam: "Grand Prix", awayTeam: item.circuit?.name ?? "Circuit",
+    homeTeam: item.competition?.name ?? "Grand Prix", awayTeam: item.circuit?.name ?? "Circuit",
     homeTeamId: 0, awayTeamId: 0, leagueId: num(item.competition?.id), season: num(item.season),
     competition: item.competition?.name ?? "Formula 1", homeScore: 0, awayScore: 0,
     elapsedMinutes: 0, periodLabel: status === "finished" ? "FT" : status === "scheduled" ? "NS" : "LIVE", status,
@@ -199,11 +199,20 @@ function mapMma(item: any): GameSummary | null {
   const method = item.method?.description || item.method?.short || "";
   const round = item.round ?? undefined;
   
+  // Convert slug to readable event name (e.g., "ufc-300" -> "UFC 300")
+  let competition = item.category ?? "MMA";
+  if (item.slug) {
+    competition = item.slug
+      .split('-')
+      .map((word: string) => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  
   return {
     gameId: String(item.id), sportId: "mma",
     homeTeam: f1.name ?? "Fighter 1", awayTeam: f2.name ?? "Fighter 2",
     homeTeamId: num(f1.id), awayTeamId: num(f2.id), leagueId: num(item.league?.id, 1), season: num(item.year, new Date().getUTCFullYear()),
-    competition: item.slug ?? item.category ?? "MMA", homeScore: 0, awayScore: 0,
+    competition, homeScore: 0, awayScore: 0,
     elapsedMinutes: 0, periodLabel: status === "finished" ? "FT" : status === "scheduled" ? "NS" : "LIVE", status,
     winner, method, round,
   };

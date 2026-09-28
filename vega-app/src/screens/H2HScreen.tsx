@@ -38,9 +38,23 @@ export default function H2HScreen({ sportId, game, onBack }: Props) {
     }
   }
 
-  // Calculate head-to-head summary
-  const summary = h2hGames.reduce((acc, g) => {
-    if (g.status === "finished") {
+  // Sort meetings newest first and cap at 10
+  const sortedGames = [...h2hGames]
+    .sort((a, b) => {
+      // Try to sort by date if available, otherwise by gameId (assuming newer games have higher IDs)
+      const dateA = a.date ? new Date(a.date).getTime() : 0;
+      const dateB = b.date ? new Date(b.date).getTime() : 0;
+      if (dateA > 0 && dateB > 0) {
+        return dateB - dateA; // Newest first
+      }
+      // Fallback: sort by gameId in descending order (assuming newer games have higher IDs)
+      return Number(b.gameId) - Number(a.gameId);
+    })
+    .slice(0, 10);
+
+  // Calculate head-to-head summary with score validation
+  const summary = sortedGames.reduce((acc, g) => {
+    if (g.status === "finished" && typeof g.homeScore === "number" && typeof g.awayScore === "number") {
       const homeWon = g.homeScore > g.awayScore;
       const awayWon = g.awayScore > g.homeScore;
       const isDraw = g.homeScore === g.awayScore;
@@ -96,15 +110,15 @@ export default function H2HScreen({ sportId, game, onBack }: Props) {
       </View>
 
       {loading && <ActivityIndicator size="large" color="#FF6200" />}
-      {!loading && h2hGames.length === 0 && (
+      {!loading && sortedGames.length === 0 && (
         <Text style={styles.empty}>No previous meetings found</Text>
       )}
 
       <ScrollView style={styles.gamesList}>
-        {h2hGames.map((g, index) => (
+        {sortedGames.map((g, index) => (
           <View key={index} style={styles.gameRow}>
             <Text style={styles.gameDate}>
-              {g.date ? new Date(g.date).toLocaleDateString() : "Unknown date"}
+              Game #{g.gameId.slice(-4)}
             </Text>
             <View style={styles.gameScore}>
               <Text style={styles.team}>{g.homeTeam}</Text>

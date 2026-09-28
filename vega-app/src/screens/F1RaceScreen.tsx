@@ -70,7 +70,7 @@ export default function F1RaceScreen({ game, onBack }: Props) {
       </View>
 
       <View style={styles.circuitInfo}>
-        <Text style={styles.circuitName}>{raceData.circuit}</Text>
+        <Text style={styles.circuitName}>{raceData.circuit || game.awayTeam}</Text>
         {raceData.laps > 0 && <Text style={styles.lapsInfo}>{raceData.laps} Laps</Text>}
       </View>
 
@@ -78,14 +78,17 @@ export default function F1RaceScreen({ game, onBack }: Props) {
         <View style={styles.podiumSection}>
           <Text style={styles.sectionTitle}>Podium</Text>
           <View style={styles.podiumContainer}>
-            {podium.map((result, index) => (
-              <View key={result.position} style={[styles.podiumPlace, styles[`podium${index + 1}`]]}>
-                <Text style={styles.positionBadge}>{result.position}</Text>
-                <Text style={styles.driverName}>{result.driver}</Text>
-                <Text style={styles.teamName}>{result.team}</Text>
-                <Text style={styles.timeText}>{result.time}</Text>
-              </View>
-            ))}
+            {podium.map((result, index) => {
+              const podiumStyle = index === 0 ? styles.podium1 : index === 1 ? styles.podium2 : styles.podium3;
+              return (
+                <View key={result.position} style={[styles.podiumPlace, podiumStyle]}>
+                  <Text style={styles.positionBadge}>{result.position}</Text>
+                  <Text style={styles.driverName}>{result.driver}</Text>
+                  <Text style={styles.teamName}>{result.team}</Text>
+                  <Text style={styles.timeText}>{result.time}</Text>
+                </View>
+              );
+            })}
           </View>
         </View>
       )}
