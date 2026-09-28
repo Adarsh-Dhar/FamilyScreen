@@ -69,6 +69,10 @@ export interface GameState {
   winProbabilityHistory: Array<{ home: number; away: number; draw: number; timestamp: string }>;
   /** Per-period scores: quarters, periods, halves, sets, innings */
   lines?: Array<{ label: string; home: number; away: number }>;
+  /** MMA-specific: winner info */
+  winner?: "home" | "away" | "draw";
+  method?: string;
+  round?: number;
 }
 
 export interface GameSummary {
@@ -88,6 +92,10 @@ export interface GameSummary {
   status: "live" | "finished" | "scheduled";
   /** Per-period scores: quarters, periods, halves, sets, innings */
   lines?: Array<{ label: string; home: number; away: number }>;
+  /** MMA-specific: winner info */
+  winner?: "home" | "away" | "draw";
+  method?: string;
+  round?: number;
 }
 
 // Alias used by components/Tile.tsx (for backward compatibility)
@@ -142,6 +150,8 @@ export interface StandingRow {
   drawn: number;
   lost: number;
   points: number | null;
+  group?: string;
+  winPct?: number;
 }
 
 export interface ActiveLeague {

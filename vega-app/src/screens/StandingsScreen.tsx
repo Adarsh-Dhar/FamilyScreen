@@ -2,7 +2,7 @@ import React, { useEffect, useState } from "react";
 import { ActivityIndicator, BackHandler, ScrollView, StyleSheet, Text, View } from "react-native";
 import { colors } from "../theme";
 import { Focusable } from "../components/Focusable";
-import { getActiveLeagues, getStandings } from "../api";
+import { getActiveLeagues, getAllLeagues, getStandings } from "../api";
 import type { ActiveLeague, SportId, StandingRow } from "../types";
 
 interface Props {
@@ -10,6 +10,8 @@ interface Props {
   sportLabel: string;
   onBack: () => void;
 }
+
+const NO_DRAW_SPORTS = new Set(["basketball", "nba", "baseball", "hockey", "nfl", "afl"]);
 
 export default function StandingsScreen({ sportId, sportLabel, onBack }: Props) {
   const [leagues, setLeagues] = useState<ActiveLeague[]>([]);
@@ -27,7 +29,13 @@ export default function StandingsScreen({ sportId, sportLabel, onBack }: Props) 
 
   useEffect(() => {
     getActiveLeagues(sportId)
-      .then((r) => setLeagues(r.leagues))
+      .then((r) => {
+        if (r.leagues.length === 0) {
+          // Fallback to all leagues if no active games
+          return getAllLeagues(sportId).then((all) => setLeagues(all.leagues));
+        }
+        setLeagues(r.leagues);
+      })
       .catch((e) => console.error("Failed to load leagues:", e))
       .finally(() => setLoading(false));
   }, [sportId]);
@@ -40,6 +48,17 @@ export default function StandingsScreen({ sportId, sportLabel, onBack }: Props) 
       .catch((e) => console.error("Failed to load standings:", e))
       .finally(() => setLoading(false));
   }, [sportId, selected]);
+
+  const showDraws = !NO_DRAW_SPORTS.has(sportId);
+  const showWinPct = NO_DRAW_SPORTS.has(sportId);
+
+  // Group rows by group if present
+  const groupedRows = rows.reduce((acc, row) => {
+    const group = row.group || "Overall";
+    if (!acc[group]) acc[group] = [];
+    acc[group].push(row);
+    return acc;
+  }, {} as Record<string, StandingRow[]>);
 
   return (
     <View style={styles.container}>
@@ -69,14 +88,21 @@ export default function StandingsScreen({ sportId, sportLabel, onBack }: Props) 
       {!loading && selected && rows.length === 0 && <Text style={styles.empty}>No standings returned for this league.</Text>}
 
       <ScrollView>
-        {rows.map((r) => (
-          <View key={`${r.teamId}-${r.position}`} style={styles.row}>
-            <Text style={[styles.cell, styles.pos]}>{r.position}</Text>
-            <Text style={[styles.cell, styles.team]}>{r.team}</Text>
-            <Text style={styles.cell}>P {r.played}</Text>
-            <Text style={styles.cell}>W {r.won}</Text>
-            <Text style={styles.cell}>L {r.lost}</Text>
-            {r.points !== null && <Text style={styles.cell}>{r.points} pts</Text>}
+        {Object.entries(groupedRows).map(([groupName, groupRows]) => (
+          <View key={groupName}>
+            {groupName !== "Overall" && <Text style={styles.groupHeader}>{groupName}</Text>}
+            {groupRows.map((r) => (
+              <View key={`${r.teamId}-${r.position}`} style={styles.row}>
+                <Text style={[styles.cell, styles.pos]}>{r.position}</Text>
+                <Text style={[styles.cell, styles.team]}>{r.team}</Text>
+                <Text style={styles.cell}>P {r.played}</Text>
+                <Text style={styles.cell}>W {r.won}</Text>
+                {showDraws && <Text style={styles.cell}>D {r.drawn}</Text>}
+                <Text style={styles.cell}>L {r.lost}</Text>
+                {showWinPct && <Text style={styles.cell}>{r.winPct?.toFixed(1)}%</Text>}
+                {!showWinPct && r.points !== null && <Text style={styles.cell}>{r.points} pts</Text>}
+              </View>
+            ))}
           </View>
         ))}
       </ScrollView>
@@ -95,6 +121,7 @@ const styles = StyleSheet.create({
   chipActive: { backgroundColor: colors.primary },
   chipText: { color: colors.text, fontSize: 14 },
   empty: { color: colors.muted, fontSize: 16, marginTop: 20 },
+  groupHeader: { color: colors.text, fontSize: 18, fontWeight: "bold", marginTop: 20, marginBottom: 10 },
   row: { flexDirection: "row", alignItems: "center", backgroundColor: colors.card, borderRadius: 8, padding: 12, marginBottom: 6 },
   cell: { color: colors.text, fontSize: 14, marginLeft: 14 },
   pos: { width: 28, marginLeft: 0, color: colors.muted },

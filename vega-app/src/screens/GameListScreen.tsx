@@ -113,7 +113,15 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
               <View style={styles.gameHeader}>
                 <Text style={styles.competition}>{game.competition}</Text>
                 <Text style={styles.gameStatus}>
-                  {game.periodLabel}
+                  {game.sportId === "mma" && game.status === "finished" && game.winner ? (
+                    <>
+                      {game.winner === "home" ? "W" : game.winner === "away" ? "L" : "D"}
+                      {game.method && ` · ${game.method}`}
+                      {game.round && ` · R${game.round}`}
+                    </>
+                  ) : (
+                    game.periodLabel
+                  )}
                 </Text>
               </View>
               

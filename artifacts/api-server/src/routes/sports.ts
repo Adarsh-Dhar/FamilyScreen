@@ -77,16 +77,45 @@ router.get("/:sport/leagues/active", (req, res) => {
   res.json({ leagues: getActiveLeagues(sport) });
 });
 
-router.get("/:sport/standings", async (req, res) => {
+/** All leagues for a sport — uses the sport's leagues endpoint if available. */
+router.get("/:sport/leagues", async (req, res) => {
   const sport = sportOr400(req.params.sport, res);
   if (!sport) return;
-  const q = z.object({ league: z.coerce.number().int().positive(), season: z.string().min(1) }).safeParse(req.query);
-  if (!q.success) {
-    res.status(400).json({ error: "league and season are required" });
-    return;
+
+  try {
+    // Try to use the sport's leagues endpoint if it exists
+    const def = getSportEndpoint(sport, "leagues");
+    const result = await guardedCall<unknown[]>(sport, "leagues", def.path, def, {});
+    
+    if (result.ok && result.data) {
+      // Extract league info from the response
+      const leagues = extractLeagues(result.data);
+      res.json({ leagues });
+    } else {
+      // Fallback to active leagues
+      res.json({ leagues: getActiveLeagues(sport) });
+    }
+  } catch (error) {
+    // If leagues endpoint doesn't exist, fall back to active leagues
+    console.error("Failed to fetch leagues, using active leagues:", error);
+    res.json({ leagues: getActiveLeagues(sport) });
   }
-  res.json({ rows: await getStandings(sport, q.data.league, q.data.season) });
 });
+
+function extractLeagues(data: unknown[]): Array<{ leagueId: number; name: string; season: number | string }> {
+  const leagues: Array<{ leagueId: number; name: string; season: number | string }> = [];
+  for (const item of data) {
+    const obj = item as any;
+    if (obj.id && obj.name) {
+      leagues.push({
+        leagueId: typeof obj.id === "number" ? obj.id : Number(obj.id),
+        name: String(obj.name),
+        season: obj.season ?? new Date().getUTCFullYear(),
+      });
+    }
+  }
+  return leagues;
+}
 
 /** Teams in a league/season. Uses sport-specific endpoint keys (teams for football, games with league filter for others). */
 router.get("/:sport/teams", async (req, res) => {
@@ -187,5 +216,16 @@ function extractUniqueTeams(games: unknown[]): Array<{ id: number; name: string 
   }
   return Array.from(teamMap.entries()).map(([id, name]) => ({ id, name }));
 }
+
+router.get("/:sport/standings", async (req, res) => {
+  const sport = sportOr400(req.params.sport, res);
+  if (!sport) return;
+  const q = z.object({ league: z.coerce.number().int().positive(), season: z.string().min(1) }).safeParse(req.query);
+  if (!q.success) {
+    res.status(400).json({ error: "league and season are required" });
+    return;
+  }
+  res.json({ rows: await getStandings(sport, q.data.league, q.data.season) });
+});
 
 export default router;

@@ -20,6 +20,10 @@ export type GameSummary = {
   status: GameStatus;
   /** Per-period scores: quarters (basketball/NFL/AFL), periods (hockey), halves (handball/rugby), sets (volleyball), innings (baseball) */
   lines?: Array<{ label: string; home: number; away: number }>;
+  /** MMA-specific: winner info */
+  winner?: "home" | "away" | "draw";
+  method?: string;
+  round?: number;
 };
 
 type RawScore = number | null | undefined | Record<string, unknown>;
@@ -146,7 +150,7 @@ function mapFootball(item: any): GameSummary | null {
 function mapNba(item: any): GameSummary | null {
   return build("nba", {
     id: item.id, home: item.teams?.home, away: item.teams?.visitors ?? item.teams?.away,
-    leagueId: 0, season: item.league?.season ?? item.season, competition: "NBA",
+    leagueId: 12, season: item.league?.season ?? item.season, competition: "NBA",
     homeScore: item.scores?.home, awayScore: item.scores?.visitors ?? item.scores?.away,
     statusShort: item.status?.short, statusLong: item.status?.long,
   });
@@ -183,12 +187,23 @@ function mapMma(item: any): GameSummary | null {
   if (!status || item.id === undefined) return null;
   const f1 = item.fighters?.first ?? item.fighters?.[0] ?? {};
   const f2 = item.fighters?.second ?? item.fighters?.[1] ?? {};
+  
+  // Extract winner info
+  let winner: "home" | "away" | "draw" | undefined;
+  if (f1.winner && !f2.winner) winner = "home";
+  else if (f2.winner && !f1.winner) winner = "away";
+  else if (!f1.winner && !f2.winner) winner = "draw";
+  
+  const method = item.method?.description || item.method?.short || "";
+  const round = item.round ?? undefined;
+  
   return {
     gameId: String(item.id), sportId: "mma",
     homeTeam: f1.name ?? "Fighter 1", awayTeam: f2.name ?? "Fighter 2",
     homeTeamId: num(f1.id), awayTeamId: num(f2.id), leagueId: 0, season: num(item.year, new Date().getUTCFullYear()),
     competition: item.slug ?? item.category ?? "MMA", homeScore: 0, awayScore: 0,
     elapsedMinutes: 0, periodLabel: status === "finished" ? "FT" : status === "scheduled" ? "NS" : "LIVE", status,
+    winner, method, round,
   };
 }
 

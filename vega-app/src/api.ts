@@ -57,6 +57,10 @@ export function getActiveLeagues(sportId: SportId) {
   return request<{ leagues: ActiveLeague[] }>(`/${sportId}/leagues/active`);
 }
 
+export function getAllLeagues(sportId: SportId) {
+  return request<{ leagues: ActiveLeague[] }>(`/${sportId}/leagues`);
+}
+
 export function getStandings(sportId: SportId, league: number, season: number | string) {
   return request<{ rows: StandingRow[] }>(`/${sportId}/standings?league=${league}&season=${encodeURIComponent(String(season))}`);
 }

@@ -103,7 +103,15 @@ export default function GameScreen({ sportId, hasPredictions, game, onBack }: Ga
             {gameState.homeScore} - {gameState.awayScore}
           </Text>
           <Text style={styles.time}>
-            {gameState.periodLabel}
+            {gameState.sportId === "mma" && gameState.status === "finished" && gameState.winner ? (
+              <>
+                {gameState.winner === "home" ? "W" : gameState.winner === "away" ? "L" : "D"}
+                {gameState.method && ` · ${gameState.method}`}
+                {gameState.round && ` · R${gameState.round}`}
+              </>
+            ) : (
+              gameState.periodLabel
+            )}
           </Text>
         </View>
         <Text style={styles.teamName}>{gameState.awayTeam}</Text>
@@ -134,21 +142,21 @@ export default function GameScreen({ sportId, hasPredictions, game, onBack }: Ga
                 <View
                   style={[
                     styles.probabilityFill,
-                    { width: `${homeProb}%`, backgroundColor: "#0074B8" },
+                    { width: `${homeProb}%`, backgroundColor: styles.homeWin.backgroundColor },
                   ]}
                 />
                 {hasDraw && (
                   <View
                     style={[
                       styles.probabilityFill,
-                      { width: `${drawProb}%`, backgroundColor: "#888888" },
+                      { width: `${drawProb}%`, backgroundColor: styles.draw.backgroundColor },
                     ]}
                   />
                 )}
                 <View
                   style={[
                     styles.probabilityFill,
-                    { width: `${awayProb}%`, backgroundColor: "#FF6200" },
+                    { width: `${awayProb}%`, backgroundColor: styles.awayWin.backgroundColor },
                   ]}
                 />
               </View>
@@ -385,5 +393,14 @@ const styles = StyleSheet.create({
     color: colors.text,
     fontSize: 16,
     lineHeight: 22,
+  },
+  homeWin: {
+    backgroundColor: "#0074B8",
+  },
+  draw: {
+    backgroundColor: "#888888",
+  },
+  awayWin: {
+    backgroundColor: "#FF6200",
   },
 });
