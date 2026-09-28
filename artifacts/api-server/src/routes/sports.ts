@@ -184,8 +184,7 @@ router.get("/:sport/games/:id/h2h", async (req, res) => {
       const def = getSportEndpoint(sport, endpointKey);
       result = await guardedCall<unknown[]>(sport, endpointKey, def.path, def, { 
         h2h: `${homeTeamId}-${awayTeamId}`,
-        league: gameState.leagueId,
-        season: gameState.season,
+        ...(sport === "football" ? { last: 10 } : {}),
       });
     } else {
       // Fallback for sports without h2h endpoint: fetch all games for home team in league/season
