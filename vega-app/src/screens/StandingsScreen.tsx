@@ -99,8 +99,9 @@ export default function StandingsScreen({ sportId, sportLabel, onBack }: Props) 
                 <Text style={styles.cell}>W {r.won}</Text>
                 {showDraws && <Text style={styles.cell}>D {r.drawn}</Text>}
                 <Text style={styles.cell}>L {r.lost}</Text>
-                {showWinPct && <Text style={styles.cell}>{r.winPct?.toFixed(1)}%</Text>}
+                {showWinPct && <Text style={styles.cell}>{r.winPct?.toFixed(3)}</Text>}
                 {!showWinPct && r.points !== null && <Text style={styles.cell}>{r.points} pts</Text>}
+                {!showWinPct && r.points === null && <Text style={styles.cell}>{r.winPct?.toFixed(3)}</Text>}
               </View>
             ))}
           </View>

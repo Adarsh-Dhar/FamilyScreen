@@ -12,9 +12,10 @@ interface GameScreenProps {
   hasPredictions: boolean;
   game: GameSummary;
   onBack: () => void;
+  onH2H?: () => void;
 }
 
-export default function GameScreen({ sportId, hasPredictions, game, onBack }: GameScreenProps) {
+export default function GameScreen({ sportId, hasPredictions, game, onBack, onH2H }: GameScreenProps) {
   const [gameState, setGameState] = useState<GameState | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -99,25 +100,41 @@ export default function GameScreen({ sportId, hasPredictions, game, onBack }: Ga
       <View style={styles.scoreSection}>
         <Text style={styles.teamName}>{gameState.homeTeam}</Text>
         <View style={styles.scoreBox}>
-          <Text style={styles.score}>
-            {gameState.homeScore} - {gameState.awayScore}
-          </Text>
-          <Text style={styles.time}>
-            {gameState.sportId === "mma" && gameState.status === "finished" && gameState.winner ? (
-              <>
-                {gameState.winner === "home" ? "W" : gameState.winner === "away" ? "L" : "D"}
-                {gameState.method && ` · ${gameState.method}`}
-                {gameState.round && ` · R${gameState.round}`}
-              </>
-            ) : (
-              gameState.periodLabel
-            )}
-          </Text>
+          {gameState.sportId === "mma" ? (
+            <>
+              <Text style={styles.score}>
+                {gameState.status === "finished" && gameState.winner ? (
+                  <>
+                    {gameState.winner === "home" ? "W" : gameState.winner === "away" ? "L" : "D"}
+                    {gameState.method && ` · ${gameState.method}`}
+                    {gameState.round && ` · R${gameState.round}`}
+                  </>
+                ) : (
+                  gameState.periodLabel
+                )}
+              </Text>
+            </>
+          ) : (
+            <>
+              <Text style={styles.score}>
+                {gameState.homeScore} - {gameState.awayScore}
+              </Text>
+              <Text style={styles.time}>
+                {gameState.periodLabel}
+              </Text>
+            </>
+          )}
         </View>
         <Text style={styles.teamName}>{gameState.awayTeam}</Text>
       </View>
 
       {gameState.lines && gameState.lines.length > 0 && <LineScore lines={gameState.lines} />}
+
+      {onH2H && (
+        <Focusable style={styles.h2hButton} onPress={onH2H}>
+          <Text style={styles.h2hButtonText}>Head to Head</Text>
+        </Focusable>
+      )}
 
       {showPredictions && (
         <View style={styles.probabilitySection}>
@@ -402,5 +419,19 @@ const styles = StyleSheet.create({
   },
   awayWin: {
     backgroundColor: "#FF6200",
+  },
+  h2hButton: {
+    backgroundColor: colors.card,
+    borderRadius: 12,
+    padding: 16,
+    alignItems: "center",
+    marginBottom: 20,
+    borderWidth: 2,
+    borderColor: "transparent",
+  },
+  h2hButtonText: {
+    color: "#FF6200",
+    fontSize: 16,
+    fontWeight: "bold",
   },
 });

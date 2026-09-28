@@ -9,6 +9,7 @@ import type {
   StandingRow,
   ActiveLeague,
   Team,
+  F1RaceData,
 } from "./types";
 
 export type { SportId, GameSummary, SportDefinition };
@@ -71,4 +72,8 @@ export function getTeams(sportId: SportId, league: number, season: number | stri
 
 export function getHeadToHead(sportId: SportId, gameId: string) {
   return request<{ games: unknown[] }>(`/${sportId}/games/${encodeURIComponent(gameId)}/h2h`);
+}
+
+export function getF1RaceResults(raceId: string) {
+  return request<{ results: unknown[] }>(`/formula1/races/${encodeURIComponent(raceId)}/results`);
 }

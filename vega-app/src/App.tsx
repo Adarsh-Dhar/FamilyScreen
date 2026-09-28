@@ -7,6 +7,9 @@ import GameListScreen from "./screens/GameListScreen";
 import StandingsScreen from "./screens/StandingsScreen";
 import TeamsScreen from "./screens/TeamsScreen";
 import GameScreen from "./screens/MatchScreen";
+import MmaFightScreen from "./screens/MmaFightScreen";
+import F1RaceScreen from "./screens/F1RaceScreen";
+import H2HScreen from "./screens/H2HScreen";
 import type { GameSummary, SportDefinition, SportFeature } from "./types";
 
 // Sport select → features → (game list → game detail | standings | teams)
@@ -16,7 +19,8 @@ type Nav =
   | { screen: "games"; sport: SportDefinition; filter: "live" | "past" }
   | { screen: "standings"; sport: SportDefinition }
   | { screen: "teams"; sport: SportDefinition }
-  | { screen: "game"; sport: SportDefinition; filter: "live" | "past"; game: GameSummary };
+  | { screen: "game"; sport: SportDefinition; filter: "live" | "past"; game: GameSummary }
+  | { screen: "h2h"; sport: SportDefinition; filter: "live" | "past"; game: GameSummary };
 
 export default function App() {
   const [nav, setNav] = useState<Nav>({ screen: "sports" });
@@ -56,11 +60,32 @@ export default function App() {
       )}
 
       {nav.screen === "game" && (
-        <GameScreen
+        nav.sport.id === "mma" ? (
+          <MmaFightScreen
+            game={nav.game}
+            onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
+          />
+        ) : nav.sport.id === "formula1" ? (
+          <F1RaceScreen
+            game={nav.game}
+            onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
+          />
+        ) : (
+          <GameScreen
+            sportId={nav.sport.id}
+            hasPredictions={nav.sport.hasPredictions}
+            game={nav.game}
+            onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
+            onH2H={() => setNav({ screen: "h2h", sport: nav.sport, game: nav.game })}
+          />
+        )
+      )}
+
+      {nav.screen === "h2h" && (
+        <H2HScreen
           sportId={nav.sport.id}
-          hasPredictions={nav.sport.hasPredictions}
           game={nav.game}
-          onBack={() => setNav({ screen: "games", sport: nav.sport, filter: nav.filter })}
+          onBack={() => setNav({ screen: "game", sport: nav.sport, filter: nav.filter, game: nav.game })}
         />
       )}
     </SafeAreaView>

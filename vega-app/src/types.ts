@@ -165,3 +165,26 @@ export interface Team {
   name: string;
   logo?: string;
 }
+
+// F1-specific types
+export interface F1RaceResult {
+  position: number;
+  driver: string;
+  team: string;
+  time: string;
+  points?: number;
+}
+
+export interface F1RaceData {
+  circuit: string;
+  laps: number;
+  winner?: string;
+  fastestLap?: {
+    driver: string;
+    team: string;
+    time: string;
+    lap: number;
+  };
+  podium: F1RaceResult[];
+  classification: F1RaceResult[];
+}

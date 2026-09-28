@@ -131,10 +131,24 @@ export default function GameListScreen({ sportId, sportLabel, onGameSelect, onBa
                 </View>
                 
                 <View style={styles.scoreBox}>
-                  <Text style={styles.score}>
-                    {game.homeScore} - {game.awayScore}
-                  </Text>
-                  {game.lines && game.lines.length > 0 && (
+                  {game.sportId === "mma" ? (
+                    <Text style={styles.score}>
+                      {game.status === "finished" && game.winner ? (
+                        <>
+                          {game.winner === "home" ? "W" : game.winner === "away" ? "L" : "D"}
+                          {game.method && ` · ${game.method}`}
+                          {game.round && ` · R${game.round}`}
+                        </>
+                      ) : (
+                        game.periodLabel
+                      )}
+                    </Text>
+                  ) : (
+                    <Text style={styles.score}>
+                      {game.homeScore} - {game.awayScore}
+                    </Text>
+                  )}
+                  {game.lines && game.lines.length > 0 && game.sportId !== "mma" && (
                     <Text style={styles.lineScore}>
                       {game.lines.map(l => `${l.label}:${l.home}-${l.away}`).join(' ')}
                     </Text>

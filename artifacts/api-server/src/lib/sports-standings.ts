@@ -2,7 +2,6 @@ import { guardedCall } from "./sports/core/guarded-call";
 import { getSportEndpoint } from "./sports/endpoints";
 import type { SportId } from "./sports/registry";
 import { getAllGames } from "./sports-data";
-import { getSportDefinition } from "./sports/registry";
 
 export type StandingRow = {
   position: number;
@@ -22,8 +21,8 @@ const n = (v: unknown): number => (typeof v === "number" ? v : Number.isFinite(N
 const NO_DRAW_SPORTS = new Set<SportId>(["basketball", "nba", "baseball", "hockey", "nfl", "afl"]);
 
 /** Walks the (differently nested per sport) response and maps every row that has a `team`. */
-function collectRows(node: unknown, out: StandingRow[], currentGroup: string = ""): void {
-  if (Array.isArray(node)) return node.forEach((x) => collectRows(x, out, currentGroup));
+function collectRows(node: unknown, out: StandingRow[], currentGroup: string = "", sportId?: SportId): void {
+  if (Array.isArray(node)) return node.forEach((x) => collectRows(x, out, currentGroup, sportId));
   if (!node || typeof node !== "object") return;
   const row = node as any;
   
@@ -45,7 +44,13 @@ function collectRows(node: unknown, out: StandingRow[], currentGroup: string = "
     } else if (row.points && typeof row.points === "object") {
       const pts = row.points as any;
       if (typeof pts.for === "number") {
-        points = pts.for; // This is actually total points scored, not standings points
+        // For no-draw sports, points.for is total points scored, not standings points
+        // Set to null and use winPct instead
+        if (sportId && NO_DRAW_SPORTS.has(sportId)) {
+          points = null;
+        } else {
+          points = pts.for;
+        }
       }
     }
     
@@ -58,19 +63,19 @@ function collectRows(node: unknown, out: StandingRow[], currentGroup: string = "
       drawn,
       lost,
       points,
-      group: currentGroup || undefined,
+      group: row.group?.name ?? currentGroup ?? undefined,
       winPct: played > 0 ? (won / played) * 100 : 0,
     });
     return;
   }
-  Object.values(row).forEach((x) => collectRows(x, out, currentGroup));
+  Object.values(row).forEach((x) => collectRows(x, out, currentGroup, sportId));
 }
 
 export async function getStandings(sportId: SportId, league: number, season: string | number): Promise<StandingRow[]> {
   const def = getSportEndpoint(sportId, "standings");
-  const result = await guardedCall<unknown[]>(sportId, "standings", def.path, def, { league, season });
+  const apiResult = await guardedCall<unknown[]>(sportId, "standings", def.path, def, { league, season });
   const rows: StandingRow[] = [];
-  if (result.ok && result.data) collectRows(result.data, rows);
+  if (apiResult.ok && apiResult.data) collectRows(apiResult.data, rows, "", sportId);
   
   // Dedupe by teamId, preferring conference groups over other groups
   const teamMap = new Map<number, StandingRow>();
@@ -90,15 +95,31 @@ export async function getStandings(sportId: SportId, league: number, season: str
   
   const uniqueRows = Array.from(teamMap.values());
   
-  // Sort by win percentage descending
-  uniqueRows.sort((a, b) => (b.winPct ?? 0) - (a.winPct ?? 0));
+  // Group by group name and sort within each group
+  const groupedRows = new Map<string, StandingRow[]>();
+  for (const row of uniqueRows) {
+    const group = row.group || "Overall";
+    if (!groupedRows.has(group)) {
+      groupedRows.set(group, []);
+    }
+    groupedRows.get(group)!.push(row);
+  }
   
-  // Renumber positions
-  uniqueRows.forEach((row, index) => {
-    row.position = index + 1;
-  });
+  // Sort by win percentage descending within each group
+  for (const groupRows of groupedRows.values()) {
+    groupRows.sort((a, b) => (b.winPct ?? 0) - (a.winPct ?? 0));
+  }
   
-  return uniqueRows;
+  // Renumber positions within each group
+  const finalResult: StandingRow[] = [];
+  for (const groupRows of groupedRows.values()) {
+    groupRows.forEach((row, index) => {
+      row.position = index + 1;
+      finalResult.push(row);
+    });
+  }
+  
+  return finalResult;
 }
 
 export function getActiveLeagues(sportId: SportId): Array<{ leagueId: number; name: string; season: number | string }> {

@@ -174,7 +174,7 @@ function mapF1(item: any): GameSummary | null {
   if (!status) return null;
   return {
     gameId: String(item.id), sportId: "formula1",
-    homeTeam: item.competition?.name ?? "Grand Prix", awayTeam: item.circuit?.name ?? "Circuit",
+    homeTeam: "Grand Prix", awayTeam: item.circuit?.name ?? "Circuit",
     homeTeamId: 0, awayTeamId: 0, leagueId: num(item.competition?.id), season: num(item.season),
     competition: item.competition?.name ?? "Formula 1", homeScore: 0, awayScore: 0,
     elapsedMinutes: 0, periodLabel: status === "finished" ? "FT" : status === "scheduled" ? "NS" : "LIVE", status,
@@ -188,11 +188,13 @@ function mapMma(item: any): GameSummary | null {
   const f1 = item.fighters?.first ?? item.fighters?.[0] ?? {};
   const f2 = item.fighters?.second ?? item.fighters?.[1] ?? {};
   
-  // Extract winner info
+  // Extract winner info - only set winner when status is finished
   let winner: "home" | "away" | "draw" | undefined;
-  if (f1.winner && !f2.winner) winner = "home";
-  else if (f2.winner && !f1.winner) winner = "away";
-  else if (!f1.winner && !f2.winner) winner = "draw";
+  if (status === "finished") {
+    if (f1.winner && !f2.winner) winner = "home";
+    else if (f2.winner && !f1.winner) winner = "away";
+    else if (!f1.winner && !f2.winner) winner = "draw";
+  }
   
   const method = item.method?.description || item.method?.short || "";
   const round = item.round ?? undefined;
@@ -200,7 +202,7 @@ function mapMma(item: any): GameSummary | null {
   return {
     gameId: String(item.id), sportId: "mma",
     homeTeam: f1.name ?? "Fighter 1", awayTeam: f2.name ?? "Fighter 2",
-    homeTeamId: num(f1.id), awayTeamId: num(f2.id), leagueId: 0, season: num(item.year, new Date().getUTCFullYear()),
+    homeTeamId: num(f1.id), awayTeamId: num(f2.id), leagueId: num(item.league?.id, 1), season: num(item.year, new Date().getUTCFullYear()),
     competition: item.slug ?? item.category ?? "MMA", homeScore: 0, awayScore: 0,
     elapsedMinutes: 0, periodLabel: status === "finished" ? "FT" : status === "scheduled" ? "NS" : "LIVE", status,
     winner, method, round,

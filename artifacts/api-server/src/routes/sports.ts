@@ -228,4 +228,27 @@ router.get("/:sport/standings", async (req, res) => {
   res.json({ rows: await getStandings(sport, q.data.league, q.data.season) });
 });
 
+/** F1-specific race results endpoint */
+router.get("/formula1/races/:id/results", async (req, res) => {
+  const sport = sportOr400("formula1", res);
+  if (!sport) return;
+  const raceId = String(req.params.id);
+
+  try {
+    // Use the laps endpoint which contains race results/classification
+    const def = getSportEndpoint("formula1", "laps");
+    const result = await guardedCall<unknown[]>(sport, "laps", def.path, def, { race: raceId });
+
+    if (!result.ok || !result.data) {
+      res.status(500).json({ error: "Failed to fetch race results" });
+      return;
+    }
+
+    res.json({ results: result.data });
+  } catch (error) {
+    console.error("Failed to fetch F1 race results:", error);
+    res.status(500).json({ error: "Failed to fetch race results" });
+  }
+});
+
 export default router;
